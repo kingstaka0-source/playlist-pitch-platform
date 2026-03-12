@@ -33,6 +33,7 @@ function logStartupConfig() {
   const spotifyClientSecret = String(process.env.SPOTIFY_CLIENT_SECRET || "").trim();
   const stripeWebhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
   const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+  const frontendUrl = String(process.env.FRONTEND_URL || "").trim();
 
   console.log("STARTUP CONFIG", {
     nodeEnv: process.env.NODE_ENV || "development",
@@ -44,6 +45,8 @@ function logStartupConfig() {
     emailFromConfigured: !!emailFrom,
     resendTestToConfigured: !!resendTestTo,
     stripeWebhookSecretConfigured: !!stripeWebhookSecret,
+    frontendUrlConfigured: !!frontendUrl,
+    frontendUrl,
   });
 
   if (!databaseUrl) {
@@ -68,13 +71,14 @@ function logStartupConfig() {
     );
   }
 
-  if (
-    emailFrom.toLowerCase() === "onboarding@resend.dev" &&
-    !resendTestTo
-  ) {
+  if (emailFrom.toLowerCase() === "onboarding@resend.dev" && !resendTestTo) {
     console.warn(
       "ENV WARNING: EMAIL_FROM is onboarding@resend.dev but RESEND_TEST_TO is missing."
     );
+  }
+
+  if (!frontendUrl) {
+    console.warn("ENV WARNING: FRONTEND_URL is missing.");
   }
 }
 
@@ -89,9 +93,26 @@ process.on("unhandledRejection", (reason: unknown) => {
   console.error("UNHANDLED REJECTION", reason);
 });
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  String(process.env.FRONTEND_URL || "").trim(),
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn("CORS BLOCKED ORIGIN", origin);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -225,19 +246,21 @@ app.use("/api", (_req, res) => {
   });
 });
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const message = err instanceof Error ? err.message : "INTERNAL_SERVER_ERROR";
-  console.error("EXPRESS_ERROR", err);
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const message = err instanceof Error ? err.message : "INTERNAL_SERVER_ERROR";
+    console.error("EXPRESS_ERROR", err);
 
-  if (res.headersSent) {
-    return;
+    if (res.headersSent) {
+      return;
+    }
+
+    return res.status(500).json({
+      error: "INTERNAL_SERVER_ERROR",
+      message,
+    });
   }
-
-  return res.status(500).json({
-    error: "INTERNAL_SERVER_ERROR",
-    message,
-  });
-});
+);
 
 const port = Number(process.env.PORT || 3100);
 
