@@ -1,0 +1,18 @@
+import 'dotenv/config';
+
+export const env = {
+  DATABASE_URL: process.env.DATABASE_URL,
+  PORT: process.env.PORT,
+  SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
+  SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
+  SPOTIFY_REDIRECT_URI: process.env.SPOTIFY_REDIRECT_URI,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
+  EMAIL_FROM: process.env.EMAIL_FROM,
+  RESEND_TEST_TO: process.env.RESEND_TEST_TO,
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+  STRIPE_PRICE_ID: process.env.STRIPE_PRICE_ID,
+  FRONTEND_URL: process.env.FRONTEND_URL,
+};
+

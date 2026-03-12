@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Playlist Pitch Dashboard</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    input, button { padding: 8px; margin: 4px 0; }
+    pre { background:#f4f4f4; padding:12px; overflow:auto; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <h1>Playlist Pitch Dashboard</h1>
+
+  <div class="row">
+    <button onclick="loadCurators()">Load Curators</button>
+    <button onclick="loadPlaylists()">Load Playlists</button>
+  </div>
+
+  <h3>Matches by trackId</h3>
+  <div class="row">
+    <input id="trackId" placeholder="trackId..." size="40" />
+    <button onclick="loadMatches()">Load Matches</button>
+  </div>
+
+  <h3>Output</h3>
+  <pre id="out">Ready.</pre>
+
+<script>
+const API = "http://127.0.0.1:3100";
+
+async function show(promise) {
+  const out = document.getElementById('out');
+  out.textContent = "Loading...";
+  try {
+    const data = await promise;
+    out.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    out.textContent = "ERROR: " + e;
+  }
+}
+
+function loadCurators() {
+  show(fetch(API + "/curators").then(r => r.json()));
+}
+function loadPlaylists() {
+  show(fetch(API + "/playlists").then(r => r.json()));
+}
+function loadMatches() {
+  const id = document.getElementById('trackId').value.trim();
+  show(fetch(API + "/matches?trackId=" + encodeURIComponent(id)).then(r => r.json()));
+}
+</script>
+</body>
+</html>
