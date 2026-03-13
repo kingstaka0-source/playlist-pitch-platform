@@ -17,8 +17,8 @@ const BANNED_PLAYLIST_WORDS = [
   "hardcore",
   "techno",
   "house",
-  "classical",
   "opera",
+  "classical",
 ];
 
 function containsBannedWord(text: string) {
@@ -28,11 +28,6 @@ function containsBannedWord(text: string) {
 
 function normalizeGenre(value: string) {
   return value.toLowerCase().trim();
-}
-
-function getTrackGenres(track: any): string[] {
-  const genres = Array.isArray(track?.genres) ? track.genres : [];
-  return genres.map((g: unknown) => normalizeGenre(String(g))).filter(Boolean);
 }
 
 function getPlaylistGenres(playlist: any): string[] {
@@ -72,38 +67,6 @@ function inferGenresFromText(text: string): string[] {
   return [...new Set(found)];
 }
 
-// ✅ Soft penalty in plaats van harde blokkade
-function penaltyForRules(
-  vector: TrackVector,
-  playlist: {
-    minBpm?: number | null;
-    maxBpm?: number | null;
-    minEnergy?: number | null;
-    maxEnergy?: number | null;
-  }
-) {
-  const bpm = vector[3] * 200;
-  const energy = vector[1];
-
-  let penalty = 0;
-
-  if (playlist.minBpm != null && bpm < playlist.minBpm) {
-    penalty += (playlist.minBpm - bpm) * 0.6;
-  }
-  if (playlist.maxBpm != null && bpm > playlist.maxBpm) {
-    penalty += (bpm - playlist.maxBpm) * 0.6;
-  }
-
-  if (playlist.minEnergy != null && energy < playlist.minEnergy) {
-    penalty += (playlist.minEnergy - energy) * 55;
-  }
-  if (playlist.maxEnergy != null && energy > playlist.maxEnergy) {
-    penalty += (energy - playlist.maxEnergy) * 55;
-  }
-
-  return penalty;
-}
-
 function buildTrackVector(track: any): TrackVector {
   const f = (track.audioFeatures ?? {}) as any;
 
@@ -128,67 +91,110 @@ function buildPlaylistCentroid(pl: any): TrackVector {
   ];
 }
 
-function computeGenreBonus(track: any, playlist: any) {
-  const trackGenres = getTrackGenres(track);
+function penaltyForRules(
+  vector: TrackVector,
+  playlist: {
+    minBpm?: number | null;
+    maxBpm?: number | null;
+    minEnergy?: number | null;
+    maxEnergy?: number | null;
+  }
+) {
+  const bpm = vector[3] * 200;
+  const energy = vector[1];
 
+  let penalty = 0;
+
+  if (playlist.minBpm != null && bpm < playlist.minBpm) {
+    penalty += (playlist.minBpm - bpm) * 0.45;
+  }
+  if (playlist.maxBpm != null && bpm > playlist.maxBpm) {
+    penalty += (bpm - playlist.maxBpm) * 0.45;
+  }
+
+  if (playlist.minEnergy != null && energy < playlist.minEnergy) {
+    penalty += (playlist.minEnergy - energy) * 40;
+  }
+  if (playlist.maxEnergy != null && energy > playlist.maxEnergy) {
+    penalty += (energy - playlist.maxEnergy) * 40;
+  }
+
+  return penalty;
+}
+
+function getSendableEmailState(playlist: any) {
+  return (
+    !!playlist?.curator?.email &&
+    playlist.curator.contactMethod === "EMAIL" &&
+    playlist.curator.consent === true
+  );
+}
+
+function genericTitlePenalty(name: string) {
+  const lower = name.toLowerCase().trim();
+
+  if (!lower) return 8;
+  if (lower === "reggae") return 10;
+  if (lower === "hip hop") return 10;
+  if (lower === "afrobeats") return 10;
+  if (lower.split(/\s+/).length <= 1) return 7;
+
+  return 0;
+}
+
+function specificityBonus(playlist: any) {
+  let bonus = 0;
+
+  const playlistGenres = getPlaylistGenres(playlist);
   const textGenres = inferGenresFromText(
     `${playlist?.name ?? ""} ${playlist?.rules ? JSON.stringify(playlist.rules) : ""}`
   );
 
-  const playlistGenres = [...new Set([...getPlaylistGenres(playlist), ...textGenres])];
+  const mergedGenres = [...new Set([...playlistGenres, ...textGenres])];
 
-  if (trackGenres.length === 0 || playlistGenres.length === 0) {
-    return {
-      bonus: 0,
-      overlap: [] as string[],
-      playlistGenres,
-      trackGenres,
-    };
-  }
+  if (mergedGenres.length >= 2) bonus += 6;
+  else if (mergedGenres.length === 1) bonus += 3;
 
-  const overlap = trackGenres.filter((g) => playlistGenres.includes(g));
+  if (playlist.spotifyPlaylistId) bonus += 2;
+  if (getSendableEmailState(playlist)) bonus += 5;
 
-  let bonus = 0;
-
-  if (overlap.length > 0) {
-    bonus += Math.min(30, overlap.length * 12);
-  }
-
-  return {
-    bonus,
-    overlap,
-    playlistGenres,
-    trackGenres,
-  };
+  return bonus;
 }
 
-function computeTextPenalty(track: any, playlist: any) {
-  const playlistName = String(playlist?.name ?? "");
-  const rulesText = playlist?.rules ? JSON.stringify(playlist.rules) : "";
-  const fullText = `${playlistName} ${rulesText}`.toLowerCase();
+function textMismatchPenalty(playlist: any) {
+  const fullText = `${playlist?.name ?? ""} ${playlist?.rules ? JSON.stringify(playlist.rules) : ""}`.toLowerCase();
 
   if (containsBannedWord(fullText)) {
-    return 60;
-  }
-
-  const trackGenres = getTrackGenres(track);
-
-  // zachte penalty voor duidelijke mismatch buckets
-  if (
-    trackGenres.includes("reggae") &&
-    (fullText.includes("techno") || fullText.includes("house") || fullText.includes("classical"))
-  ) {
-    return 35;
-  }
-
-  if (
-    trackGenres.includes("hiphop") &&
-    (fullText.includes("opera") || fullText.includes("classical"))
-  ) {
-    return 35;
+    return 50;
   }
 
   return 0;
+}
+
+function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
+  const centroid = buildPlaylistCentroid(playlist);
+
+  const baseCosine = cosine(vec, centroid);
+
+  // basis nu lager en meer gespreid
+  let score = 28 + baseCosine * 42;
+
+  score -= penaltyForRules(vec, playlist);
+  score -= textMismatchPenalty(playlist);
+  score -= genericTitlePenalty(String(playlist?.name ?? ""));
+  score += specificityBonus(playlist);
+
+  // extra lichte bonus als playlist naam exact niche-signalen heeft
+  const nameText = String(playlist?.name ?? "").toLowerCase();
+  if (nameText.includes("roots")) score += 2;
+  if (nameText.includes("dub")) score += 2;
+  if (nameText.includes("reggae")) score += 3;
+  if (nameText.includes("dancehall")) score += 3;
+
+  score = Math.round(score);
+  score = Math.max(0, Math.min(99, score)); // <- max 99 zodat niet alles 100 wordt
+
+  return score;
 }
 
 export async function computeMatches(trackId: string) {
@@ -216,48 +222,15 @@ export async function computeMatches(trackId: string) {
   );
 
   const scored = playlists.map((pl) => {
-    const centroid = buildPlaylistCentroid(pl);
+    const score = computeFinalScore(track, pl, vec);
 
-    const baseCosine = cosine(vec, centroid);
-    const baseScore = Math.round(baseCosine * 100);
-
-    const rulesPenalty = penaltyForRules(vec, pl);
-    const textPenalty = computeTextPenalty(track, pl);
-
-    const genreInfo = computeGenreBonus(track, pl);
-
-    let score = baseScore + genreInfo.bonus - rulesPenalty - textPenalty;
-
-    // kleine bonus als playlist genres heeft
-    if (Array.isArray(pl.genres) && pl.genres.length > 0) {
-      score += 4;
-    }
-
-    // kleine bonus als spotifyPlaylistId aanwezig is
-    if (pl.spotifyPlaylistId) {
-      score += 2;
-    }
-
-    score = Math.round(score);
-    score = Math.max(0, Math.min(100, score));
-
-    const canEmail =
-      !!pl.curator?.email &&
-      pl.curator?.contactMethod === "EMAIL" &&
-      pl.curator?.consent === true;
+    const canEmail = getSendableEmailState(pl);
 
     const explanationParts = [
       `Tempo ~${Math.round(vec[3] * 200)} BPM`,
       `Energy ~${vec[1].toFixed(2)}`,
-      genreInfo.overlap.length > 0
-        ? `Genre overlap: ${genreInfo.overlap.join(", ")}`
-        : "Genre overlap: none",
       canEmail ? "Sendable by email" : "Not sendable by email",
     ];
-
-    if (textPenalty >= 35) {
-      explanationParts.push("Penalty: playlist text mismatch");
-    }
 
     return {
       playlistId: pl.id,
@@ -266,9 +239,8 @@ export async function computeMatches(trackId: string) {
     };
   });
 
-  // ✅ Alleen bruikbare matches bewaren
   const top = scored
-    .filter((t) => t.score >= 45)
+    .filter((t) => t.score >= 40)
     .sort((a, b) => b.score - a.score)
     .slice(0, 50);
 
@@ -290,9 +262,6 @@ export async function computeMatches(trackId: string) {
   return created;
 }
 
-// ================================
-// Wrapper voor worker: geeft top + playlist names terug
-// ================================
 export async function triggerMatchesForTrack(trackId: string) {
   const created = await computeMatches(trackId);
 
