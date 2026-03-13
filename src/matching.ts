@@ -173,10 +173,8 @@ function textMismatchPenalty(playlist: any) {
 
 function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
   const centroid = buildPlaylistCentroid(playlist);
-
   const baseCosine = cosine(vec, centroid);
 
-  // basis nu lager en meer gespreid
   let score = 28 + baseCosine * 42;
 
   score -= penaltyForRules(vec, playlist);
@@ -184,7 +182,6 @@ function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
   score -= genericTitlePenalty(String(playlist?.name ?? ""));
   score += specificityBonus(playlist);
 
-  // extra lichte bonus als playlist naam exact niche-signalen heeft
   const nameText = String(playlist?.name ?? "").toLowerCase();
   if (nameText.includes("roots")) score += 2;
   if (nameText.includes("dub")) score += 2;
@@ -192,9 +189,31 @@ function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
   if (nameText.includes("dancehall")) score += 3;
 
   score = Math.round(score);
-  score = Math.max(0, Math.min(99, score)); // <- max 99 zodat niet alles 100 wordt
+  score = Math.max(0, Math.min(99, score));
 
   return score;
+}
+
+type RankedMatch = {
+  playlistId: string;
+  score: number;
+  explanation: string;
+  sendable: boolean;
+};
+
+function compareRankedMatches(a: RankedMatch, b: RankedMatch) {
+  // 1) sendable eerst
+  if (a.sendable !== b.sendable) {
+    return a.sendable ? -1 : 1;
+  }
+
+  // 2) dan score
+  if (a.score !== b.score) {
+    return b.score - a.score;
+  }
+
+  // 3) stabiele fallback
+  return a.playlistId.localeCompare(b.playlistId);
 }
 
 export async function computeMatches(trackId: string) {
@@ -221,9 +240,8 @@ export async function computeMatches(trackId: string) {
     vec[1]
   );
 
-  const scored = playlists.map((pl) => {
+  const scored: RankedMatch[] = playlists.map((pl) => {
     const score = computeFinalScore(track, pl, vec);
-
     const canEmail = getSendableEmailState(pl);
 
     const explanationParts = [
@@ -236,12 +254,13 @@ export async function computeMatches(trackId: string) {
       playlistId: pl.id,
       score,
       explanation: explanationParts.join(" • "),
+      sendable: canEmail,
     };
   });
 
   const top = scored
     .filter((t) => t.score >= 40)
-    .sort((a, b) => b.score - a.score)
+    .sort(compareRankedMatches)
     .slice(0, 50);
 
   const created = await Promise.all(
@@ -287,8 +306,6 @@ export async function triggerMatchesForTrack(trackId: string) {
 
   const top = created
     .slice()
-    .sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0))
-    .slice(0, 10)
     .map((m) => {
       const pl = playlistById.get(m.playlistId);
 
@@ -301,11 +318,21 @@ export async function triggerMatchesForTrack(trackId: string) {
         matchId: m.id,
         playlistId: m.playlistId,
         playlistName: pl?.name ?? m.playlistId,
-        fitScore: m.fitScore,
+        fitScore: m.fitScore ?? 0,
         genres: pl?.genres ?? [],
         sendable: canEmail,
       };
-    });
+    })
+    .sort((a, b) => {
+      if (a.sendable !== b.sendable) {
+        return a.sendable ? -1 : 1;
+      }
+      if (a.fitScore !== b.fitScore) {
+        return b.fitScore - a.fitScore;
+      }
+      return a.playlistName.localeCompare(b.playlistName);
+    })
+    .slice(0, 10);
 
   return {
     ok: true,
