@@ -3,14 +3,15 @@ import { PrismaClient, Channel, PitchStatus, Plan, ContactMethod } from "@prisma
 const prisma = new PrismaClient();
 
 async function main() {
-  const artistId = "cmlb3egmc0000tv3u2lraoqyf";
+  const artistId = "cmmnjti0n0004112o3orl713x";
 
   const artist = await prisma.artist.upsert({
     where: { id: artistId },
     update: {},
     create: {
       id: artistId,
-      name: "Test Artist",
+      name: "King Staka",
+      email: "kingstaka0@gmail.com",
       plan: Plan.FREE,
     },
   });
@@ -20,13 +21,17 @@ async function main() {
       name: "Test Curator",
       email: `testcurator_${Date.now()}@example.com`,
       contactMethod: ContactMethod.EMAIL,
+      consent: true,
+      languages: ["en"],
     },
   });
 
   const playlist = await prisma.playlist.create({
     data: {
-      name: "Test Playlist",
+      name: "Reggae Test Playlist",
       curatorId: curator.id,
+      genres: ["reggae", "roots", "dub"],
+      rules: { note: "Test playlist for matching flow" },
     } as any,
   });
 
@@ -36,24 +41,25 @@ async function main() {
       artistId: artist.id,
       spotifyTrackId: `test_track_${Date.now()}`,
       durationMs: 180000,
+      artists: ["King Staka"],
       audioFeatures: {},
     } as any,
   });
 
   const match = await prisma.match.create({
-  data: {
-    trackId: track.id,
-    playlistId: playlist.id,
-    fitScore: 80,
-    explanation: "Strong reggae fit for this playlist.",
-  } as any,
-});
+    data: {
+      trackId: track.id,
+      playlistId: playlist.id,
+      fitScore: 80,
+      explanation: "Strong reggae fit for this playlist.",
+    } as any,
+  });
 
   const pitch = await prisma.pitch.create({
     data: {
       matchId: match.id,
       subject: "Test Pitch",
-      body: "Hello this is a test pitch",
+      body: "Hello, this is a test pitch for the seeded playlist.",
       channel: Channel.INAPP,
       status: PitchStatus.DRAFT,
     },
