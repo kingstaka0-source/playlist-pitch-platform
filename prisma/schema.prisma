@@ -13,18 +13,16 @@ model Artist {
   email      String?  @unique
   spotifyId  String?  @unique
 
-  // Spotify auth
   spotifyAccessToken    String?
   spotifyRefreshToken   String?
   spotifyTokenExpiresAt DateTime?
-  spotifyScopes         String? // optioneel: "user-read-email user-read-private"
+  spotifyScopes         String?
 
   createdAt  DateTime @default(now())
 
   plan       Plan     @default(FREE)
   trialUntil DateTime?
 
-  // Stripe...
   stripeCustomerId      String? @unique
   stripeSubscriptionId  String? @unique
   subscriptionStatus    SubscriptionStatus @default(NONE)
@@ -33,10 +31,6 @@ model Artist {
 
   tracks Track[]
 }
-
-
-
-
 
 model Track {
   id              String   @id @default(cuid())
@@ -53,14 +47,23 @@ model Track {
 }
 
 model Curator {
-  id            String   @id @default(cuid())
-  name          String
-  email         String?  @unique
-  contactMethod ContactMethod
-  consent       Boolean  @default(true)
-  languages     String[] @default(["en"])
-  createdAt     DateTime @default(now())
-  playlists     Playlist[]
+  id                 String   @id @default(cuid())
+  name               String
+  email              String?  @unique
+  contactMethod      ContactMethod
+  consent            Boolean  @default(true)
+  languages          String[] @default(["en"])
+  createdAt          DateTime @default(now())
+
+  contactSourceUrl   String?
+  instagramUrl       String?
+  websiteUrl         String?
+  submissionUrl      String?
+  contactConfidence  Int      @default(0)
+  lastEnrichedAt     DateTime?
+  enrichmentNotes    String?
+
+  playlists          Playlist[]
 }
 
 enum ContactMethod {
@@ -110,6 +113,7 @@ model Match {
   explanation String
   createdAt   DateTime @default(now())
   pitch       Pitch?
+
   @@unique([trackId, playlistId], name: "trackId_playlistId")
 }
 
@@ -153,7 +157,6 @@ enum SubscriptionStatus {
   INCOMPLETE
 }
 
-
 enum AgreementSubjectType {
   ARTIST
   CURATOR
@@ -189,34 +192,21 @@ enum MatchJobStatus {
 }
 
 model MatchJob {
-  id        String         @id @default(cuid())
-  status    MatchJobStatus @default(QUEUED)
-
-  // wat moet de job doen
-  trackId   String
-  artistId  String?
-
-  // scheduling/retry
-  runAt     DateTime       @default(now())
-  attempts  Int            @default(0)
-  maxAttempts Int          @default(5)
-
-  // locking (tegen dubbele verwerking)
-  lockedAt  DateTime?
-  lockedBy  String?
-
-  // output
-  lastError String?
-  result    Json?
-
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  status      MatchJobStatus @default(QUEUED)
+  trackId     String
+  artistId    String?
+  runAt       DateTime       @default(now())
+  attempts    Int            @default(0)
+  maxAttempts Int            @default(5)
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  result      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([status, runAt])
   @@index([trackId])
   @@index([lockedAt])
 }
-
-
-
-
