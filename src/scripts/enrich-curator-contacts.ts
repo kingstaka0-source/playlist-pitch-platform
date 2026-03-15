@@ -3,240 +3,349 @@ import { PrismaClient, ContactMethod } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-type SearchCandidate = {
-  curatorId: string;
-  curatorName: string;
-  playlistName: string;
-  spotifyPlaylistId: string | null;
+type Candidate = {
+  email?: string | null;
+  instagramUrl?: string | null;
+  websiteUrl?: string | null;
+  submissionUrl?: string | null;
+  contactSourceUrl?: string | null;
+  contactConfidence: number;
+  enrichmentNotes?: string | null;
 };
 
-function clean(value: unknown) {
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function uniq<T>(values: T[]): T[] {
+  return [...new Set(values)];
+}
+
+function clean(value: unknown): string {
   return String(value || "").trim();
 }
 
-function extractEmails(text: string) {
-  const matches = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
-  return [...new Set(matches.map((m) => m.toLowerCase()))];
+function isAsset(value: string): boolean {
+  return /\.(png|jpg|jpeg|webp|svg|gif|css|js|ico|pdf)(\?.*)?$/i.test(value);
 }
 
-function extractUrls(text: string) {
-  const matches = text.match(/https?:\/\/[^\s"'<>]+/gi) || [];
-  return [...new Set(matches)];
-}
+function isBadEmail(email: string): boolean {
+  const e = normalizeEmail(email);
 
-function scoreEmail(email: string) {
-  const lower = email.toLowerCase();
+  if (!e.includes("@")) return true;
+  if (isAsset(e)) return true;
 
-  if (
-    lower.includes("noreply") ||
-    lower.includes("no-reply") ||
-    lower.includes("do-not-reply") ||
-    lower.includes("donotreply")
-  ) {
-    return 0;
-  }
+  const blockedExact = new Set([
+    "error-lite@duckduckgo.com",
+  ]);
 
-  if (
-    lower.includes("submit") ||
-    lower.includes("music") ||
-    lower.includes("demo") ||
-    lower.includes("playlist") ||
-    lower.includes("contact") ||
-    lower.includes("booking")
-  ) {
-    return 90;
-  }
+  if (blockedExact.has(e)) return true;
 
-  if (
-    lower.endsWith("@gmail.com") ||
-    lower.endsWith("@outlook.com") ||
-    lower.endsWith("@hotmail.com") ||
-    lower.endsWith("@icloud.com")
-  ) {
-    return 70;
-  }
-
-  return 75;
-}
-
-function chooseBestEmail(emails: string[]) {
-  if (!emails.length) return null;
-
-  const ranked = emails
-    .map((email) => ({ email, score: scoreEmail(email) }))
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0] || null;
-}
-
-async function fetchText(url: string) {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 PlaylistPitchPlatform/1.0",
-      },
-    });
-
-    if (!res.ok) return "";
-
-    return await res.text();
-  } catch {
-    return "";
-  }
-}
-
-async function enrichOne(candidate: SearchCandidate) {
-  const queries = [
-    `"${candidate.curatorName}" playlist email`,
-    `"${candidate.curatorName}" contact`,
-    `"${candidate.playlistName}" submit music`,
-    `"${candidate.playlistName}" playlist contact`,
+  const blockedPrefixes = [
+    "noreply@",
+    "no-reply@",
+    "privacy@",
+    "support@",
+    "help@",
+    "legal@",
+    "abuse@",
+    "admin@",
+    "hello@spotify.com",
+    "info@spotify.com",
   ];
 
-  let combinedText = "";
-  let sourceUrl: string | null = null;
-  let websiteUrl: string | null = null;
-  let instagramUrl: string | null = null;
-  let submissionUrl: string | null = null;
+  if (blockedPrefixes.some((prefix) => e.startsWith(prefix))) return true;
 
-  for (const q of queries) {
-    const searchUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
-    const html = await fetchText(searchUrl);
+  const blockedDomains = new Set([
+    "duckduckgo.com",
+    "google.com",
+    "bing.com",
+    "yahoo.com",
+    "spotify.com",
+    "instagram.com",
+    "facebookmail.com",
+    "example.com",
+    "test.com",
+    "email.com",
+  ]);
 
-    if (!html) continue;
+  const domain = e.split("@")[1] || "";
+  if (blockedDomains.has(domain)) return true;
 
-    combinedText += "\n" + html;
+  return false;
+}
 
-    const urls = extractUrls(html);
+function extractEmails(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+  return uniq(
+    matches
+      .map(normalizeEmail)
+      .filter((email) => !isBadEmail(email))
+  );
+}
 
-    for (const url of urls) {
-      const lower = url.toLowerCase();
+function extractUrls(text: string): string[] {
+  if (!text) return [];
+  const matches =
+    text.match(/https?:\/\/[^\s<>"')\]]+/gi) ||
+    text.match(/www\.[^\s<>"')\]]+/gi) ||
+    [];
 
-      if (!sourceUrl) sourceUrl = url;
-      if (!websiteUrl && !lower.includes("instagram.com") && !lower.includes("spotify.com")) {
-        websiteUrl = url;
-      }
-      if (!instagramUrl && lower.includes("instagram.com")) {
-        instagramUrl = url;
-      }
-      if (
-        !submissionUrl &&
-        (lower.includes("submit") || lower.includes("submission") || lower.includes("contact"))
-      ) {
-        submissionUrl = url;
-      }
-    }
-  }
+  return uniq(
+    matches
+      .map((url) => {
+        const trimmed = url.trim().replace(/[),.;]+$/, "");
+        if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+        return trimmed;
+      })
+      .filter(Boolean)
+  );
+}
 
-  const emails = extractEmails(combinedText);
-  const best = chooseBestEmail(emails);
+function looksLikeInstagram(url: string): boolean {
+  return /instagram\.com/i.test(url);
+}
 
-  if (!best) {
-    await prisma.curator.update({
-      where: { id: candidate.curatorId },
-      data: {
-        contactSourceUrl: sourceUrl,
-        websiteUrl,
-        instagramUrl,
-        submissionUrl,
-        lastEnrichedAt: new Date(),
-        contactConfidence: 0,
-        enrichmentNotes: "No public email found",
-      },
-    });
+function looksLikeLinktree(url: string): boolean {
+  return /linktr\.ee|beacons\.ai|bio\.site|lnk\.bio/i.test(url);
+}
 
-    return {
-      curatorId: candidate.curatorId,
-      found: false,
-    };
-  }
+function looksLikeSubmission(url: string): boolean {
+  return /submit|submission|pitch|form|google\.com\/forms|typeform|airtable/i.test(url);
+}
 
-  await prisma.curator.update({
-    where: { id: candidate.curatorId },
-    data: {
-      email: best.email,
-      contactMethod: ContactMethod.EMAIL,
-      consent: true,
-      contactSourceUrl: sourceUrl,
-      websiteUrl,
+function looksLikeWebsite(url: string): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (looksLikeInstagram(url)) return false;
+  return true;
+}
+
+function buildCandidatesFromPlaylist(input: {
+  playlistName: string;
+  description: string;
+  spotifyUrl: string;
+}): Candidate[] {
+  const description = clean(input.description);
+  const spotifyUrl = clean(input.spotifyUrl);
+
+  const emails = extractEmails(description);
+  const urls = extractUrls(description);
+
+  const instagramUrl =
+    urls.find((url) => looksLikeInstagram(url)) || null;
+
+  const submissionUrl =
+    urls.find((url) => looksLikeSubmission(url)) || null;
+
+  const websiteUrl =
+    urls.find((url) => looksLikeWebsite(url) && !looksLikeSubmission(url)) || null;
+
+  const notesBase = `Auto-enriched from playlist description`;
+
+  const candidates: Candidate[] = [];
+
+  for (const email of emails) {
+    let confidence = 70;
+
+    if (submissionUrl) confidence = 90;
+    else if (websiteUrl) confidence = 85;
+    else if (instagramUrl) confidence = 75;
+
+    candidates.push({
+      email,
       instagramUrl,
+      websiteUrl: looksLikeLinktree(websiteUrl || "") ? null : websiteUrl,
       submissionUrl,
-      contactConfidence: best.score,
-      lastEnrichedAt: new Date(),
-      enrichmentNotes: `Auto-enriched from public web results`,
-    },
-  });
+      contactSourceUrl: spotifyUrl || null,
+      contactConfidence: confidence,
+      enrichmentNotes: notesBase,
+    });
+  }
 
-  return {
-    curatorId: candidate.curatorId,
-    found: true,
-    email: best.email,
-    score: best.score,
-  };
+  if (!emails.length && (instagramUrl || websiteUrl || submissionUrl)) {
+    candidates.push({
+      email: null,
+      instagramUrl,
+      websiteUrl: looksLikeLinktree(websiteUrl || "") ? null : websiteUrl,
+      submissionUrl,
+      contactSourceUrl: spotifyUrl || null,
+      contactConfidence: submissionUrl ? 45 : 35,
+      enrichmentNotes: `${notesBase} (links only, no email found)`,
+    });
+  }
+
+  return candidates;
+}
+
+function pickBestCandidate(candidates: Candidate[]): Candidate | null {
+  if (!candidates.length) return null;
+
+  const scored = [...candidates].sort(
+    (a, b) => b.contactConfidence - a.contactConfidence
+  );
+
+  return scored[0] || null;
 }
 
 async function main() {
-  const curators = await prisma.curator.findMany({
+  const playlists = await prisma.playlist.findMany({
     where: {
       OR: [
-        { email: null },
-        { contactMethod: ContactMethod.INAPP },
+        { description: { not: null } },
+        { spotifyUrl: { not: null } },
       ],
     },
     include: {
-      playlists: {
-        take: 1,
-        orderBy: { createdAt: "desc" },
-      },
+      curator: true,
     },
-    take: 200,
+    take: 1000,
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
+  let processed = 0;
   let found = 0;
   let notFound = 0;
   let failed = 0;
+  let skippedDuplicate = 0;
+  let skippedBadEmail = 0;
+  let skippedNotBetter = 0;
+  let linksOnlyUpdated = 0;
 
-  for (const curator of curators) {
-    const playlist = curator.playlists[0];
-
-    if (!playlist) continue;
-
-    const candidate: SearchCandidate = {
-      curatorId: curator.id,
-      curatorName: clean(curator.name),
-      playlistName: clean(playlist.name),
-      spotifyPlaylistId: playlist.spotifyPlaylistId,
-    };
+  for (const playlist of playlists) {
+    processed++;
 
     try {
-      const result = await enrichOne(candidate);
+      const description = clean(playlist.description);
+      const spotifyUrl = clean(playlist.spotifyUrl);
+      const curator = playlist.curator;
 
-      if (result.found) {
-        found += 1;
-        console.log(`FOUND ${candidate.curatorName} -> ${result.email}`);
-      } else {
-        notFound += 1;
-        console.log(`NO EMAIL ${candidate.curatorName}`);
+      const candidates = buildCandidatesFromPlaylist({
+        playlistName: playlist.name,
+        description,
+        spotifyUrl,
+      });
+
+      const best = pickBestCandidate(candidates);
+
+      if (!best) {
+        notFound++;
+        console.log(`NO CONTACT | ${playlist.name}`);
+        continue;
       }
+
+      if (best.email) {
+        const normalizedEmail = normalizeEmail(best.email);
+
+        if (isBadEmail(normalizedEmail)) {
+          skippedBadEmail++;
+          console.log(`BAD EMAIL | ${playlist.name} | ${normalizedEmail}`);
+          continue;
+        }
+
+        const existingByEmail = await prisma.curator.findFirst({
+          where: {
+            email: normalizedEmail,
+            NOT: { id: curator.id },
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        });
+
+        if (existingByEmail) {
+          skippedDuplicate++;
+          console.log(
+            `DUPLICATE EMAIL | ${playlist.name} | ${normalizedEmail} | existing=${existingByEmail.name}`
+          );
+          continue;
+        }
+
+        const currentConfidence = curator.contactConfidence ?? 0;
+        const hasNoEmail = !curator.email;
+        const betterConfidence = best.contactConfidence > currentConfidence;
+
+        if (!hasNoEmail && !betterConfidence) {
+          skippedNotBetter++;
+          console.log(`SKIP NOT BETTER | ${playlist.name} | ${curator.name}`);
+          continue;
+        }
+
+        await prisma.curator.update({
+          where: { id: curator.id },
+          data: {
+            email: normalizedEmail,
+            contactMethod: ContactMethod.EMAIL,
+            instagramUrl: best.instagramUrl || curator.instagramUrl,
+            websiteUrl: best.websiteUrl || curator.websiteUrl,
+            submissionUrl: best.submissionUrl || curator.submissionUrl,
+            contactSourceUrl: best.contactSourceUrl || curator.contactSourceUrl,
+            contactConfidence: best.contactConfidence,
+            lastEnrichedAt: new Date(),
+            enrichmentNotes: best.enrichmentNotes || "Auto-enriched from playlist description",
+          },
+        });
+
+        found++;
+        console.log(
+          `FOUND EMAIL | ${playlist.name} | ${normalizedEmail} | confidence=${best.contactConfidence}`
+        );
+        continue;
+      }
+
+      const hasAnyNewLink =
+        (!!best.instagramUrl && !curator.instagramUrl) ||
+        (!!best.websiteUrl && !curator.websiteUrl) ||
+        (!!best.submissionUrl && !curator.submissionUrl);
+
+      if (!hasAnyNewLink) {
+        notFound++;
+        console.log(`NO EMAIL / NO NEW LINKS | ${playlist.name}`);
+        continue;
+      }
+
+      await prisma.curator.update({
+        where: { id: curator.id },
+        data: {
+          instagramUrl: best.instagramUrl || curator.instagramUrl,
+          websiteUrl: best.websiteUrl || curator.websiteUrl,
+          submissionUrl: best.submissionUrl || curator.submissionUrl,
+          contactSourceUrl: best.contactSourceUrl || curator.contactSourceUrl,
+          contactConfidence: Math.max(curator.contactConfidence ?? 0, best.contactConfidence),
+          lastEnrichedAt: new Date(),
+          enrichmentNotes: best.enrichmentNotes || "Auto-enriched links from playlist description",
+        },
+      });
+
+      linksOnlyUpdated++;
+      console.log(`LINKS ONLY | ${playlist.name}`);
     } catch (error) {
-      failed += 1;
-      console.log(`FAILED ${candidate.curatorName}: ${String(error)}`);
+      failed++;
+      console.error(`FAILED | playlist=${playlist.name}`);
+      console.error(error);
     }
   }
 
   console.log("\n=== DONE ===");
   console.log({
-    processed: curators.length,
+    processed,
     found,
     notFound,
     failed,
+    skippedDuplicate,
+    skippedBadEmail,
+    skippedNotBetter,
+    linksOnlyUpdated,
   });
 }
 
 main()
   .catch((e) => {
-    console.error("ENRICH FAILED");
+    console.error("ENRICHMENT FAILED");
     console.error(e);
     process.exit(1);
   })

@@ -77,6 +77,10 @@ model Playlist {
   curator           Curator  @relation(fields: [curatorId], references: [id])
   name              String
   spotifyPlaylistId String?
+  spotifyUrl        String?
+  description       String?
+  ownerDisplayName  String?
+  ownerSpotifyId    String?
   genres            String[]
   minBpm            Int?
   maxBpm            Int?
