@@ -3,9 +3,9 @@ import { Resend } from "resend";
 import { prisma } from "../db";
 import { buildPitchPrompt } from "../services/ai/buildPitchPrompt";
 import { parseAiPitch } from "../services/ai/parseAiPitch";
-import { buildFallbackPitch } from "../services/ai/buildFallbackPitch";
 import { generateTextFromAi } from "../services/ai/generateTextFromAi";
 import { getArtistUsage } from "./artists";
+import { generatePitch } from "../pitch/generatePitch"
 
 const router = Router();
 
@@ -134,19 +134,24 @@ async function buildAiPitchForMatch(match: any, channel: string) {
       subject: parsed.subject,
       body: parsed.body,
     };
-  } catch {
-    const fallback = buildFallbackPitch({
-      artistName,
-      trackTitle,
+    } catch {
+    const tempo =
+      typeof (match.track?.audioFeatures as any)?.tempo === "number"
+        ? (match.track.audioFeatures as any).tempo
+        : null;
+
+    const body = generatePitch({
       curatorName,
       playlistName,
-      playlistGenres,
-      playlistDescription: (match.playlist as any)?.description || null,
+      trackTitle,
+      artistName,
+      genres: playlistGenres,
+      tempo,
     });
 
     return {
-      subject: fallback.subject,
-      body: fallback.body,
+      subject: `Track suggestion: ${trackTitle}`,
+      body,
     };
   }
 }
