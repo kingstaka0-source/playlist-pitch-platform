@@ -66,7 +66,10 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     });
 
     const artistName = artist?.name || "Unknown Artist";
-    const trackTitle = match.track?.title || "Untitled Track";
+const trackTitle = match.track?.title || "Untitled Track";
+const trackSpotifyUrl = match.track?.spotifyTrackId
+  ? `https://open.spotify.com/track/${match.track.spotifyTrackId}`
+  : "";
     const trackArtists = Array.isArray(match.track?.artists)
       ? match.track.artists
       : [];
@@ -92,26 +95,37 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     });
 
     let subject = "";
-    let body = "";
+let body = "";
 
-    try {
-      const aiRawResponse = await generateTextFromAi(prompt);
-      const parsed = parseAiPitch(aiRawResponse);
-      subject = parsed.subject;
-      body = parsed.body;
-    } catch (aiError) {
-      const fallback = buildFallbackPitch({
-        artistName,
-        trackTitle,
-        curatorName,
-        playlistName,
-        playlistGenres,
-        playlistDescription: (match.playlist as any)?.description || null,
-      });
+try {
+  const aiRawResponse = await generateTextFromAi(prompt);
+  const parsed = parseAiPitch(aiRawResponse);
+  subject = parsed.subject;
+  body = parsed.body;
+} catch (aiError) {
+  const fallback = buildFallbackPitch({
+    artistName,
+    trackTitle,
+    curatorName,
+    playlistName,
+    playlistGenres,
+    playlistDescription: (match.playlist as any)?.description || null,
+  });
 
-      subject = fallback.subject;
-      body = fallback.body;
-    }
+  subject = fallback.subject;
+  body = fallback.body;
+}
+
+if (trackSpotifyUrl) {
+  const lowerBody = body.toLowerCase();
+
+  if (!lowerBody.includes("open.spotify.com/track/")) {
+    body = `${body.trim()}
+
+Spotify link:
+${trackSpotifyUrl}`;
+  }
+}
 
     let savedPitch;
 
