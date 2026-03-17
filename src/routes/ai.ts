@@ -127,6 +127,17 @@ ${trackSpotifyUrl}`;
   }
 }
 
+// Remove AI fluff
+body = body.replace(
+  /I hope this message finds you well\.?/gi,
+  ""
+).trim();
+
+// Force shorter pitch (max ~600 chars)
+if (body.length > 600) {
+  body = body.slice(0, 600).trim() + "...";
+}
+
 // Fix greeting formatting
 body = body.replace(
   /^(Hi|Hello)\s+([^\n,]+),\s*/i,

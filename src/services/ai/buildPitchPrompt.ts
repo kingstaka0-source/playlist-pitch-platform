@@ -90,3 +90,15 @@ Writing style:
 - No bullet points
 `;
 }
+
+IMPORTANT:
+- Keep the pitch SHORT (max 4–5 lines)
+- No long paragraphs
+- No generic phrases like "I hope this message finds you well"
+- Make it sound natural and human
+- Focus on fit, vibe and why it belongs in the playlist
+
+STYLE:
+- Casual but respectful
+- No corporate language
+- No fluff
