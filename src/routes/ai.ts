@@ -1,8 +1,8 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
+import { generatePitch } from "../pitch/generatePitch";
 import { buildPitchPrompt } from "../services/ai/buildPitchPrompt";
 import { parseAiPitch } from "../services/ai/parseAiPitch";
-import { buildFallbackPitch } from "../services/ai/buildFallbackPitch";
 import { generateTextFromAi } from "../services/ai/generateTextFromAi";
 import { getArtistUsage } from "./artists";
 
@@ -48,7 +48,6 @@ router.post("/generate-and-save-pitch", async (req, res) => {
       return res.status(404).json({ error: "Artist not found" });
     }
 
-    // FREE mag geen nieuwe pitch meer maken als limiet op is
     if (!match.pitch && usage.plan === "FREE" && !usage.allowed) {
       return res.status(403).json({
         error: "FREE_PLAN_LIMIT_REACHED",
@@ -59,20 +58,15 @@ router.post("/generate-and-save-pitch", async (req, res) => {
 
     const artist = await prisma.artist.findUnique({
       where: { id: String(artistId) },
-      select: {
-        id: true,
-        name: true,
-      },
+      select: { id: true, name: true },
     });
 
     const artistName = artist?.name || "Unknown Artist";
-const trackTitle = match.track?.title || "Untitled Track";
-const trackSpotifyUrl = match.track?.spotifyTrackId
-  ? `https://open.spotify.com/track/${match.track.spotifyTrackId}`
-  : "";
+    const trackTitle = match.track?.title || "Untitled Track";
     const trackArtists = Array.isArray(match.track?.artists)
       ? match.track.artists
       : [];
+
     const playlistName = match.playlist?.name || "this playlist";
     const curatorName = match.playlist?.curator?.name || null;
 
@@ -80,70 +74,87 @@ const trackSpotifyUrl = match.track?.spotifyTrackId
       ? match.playlist.genres
       : [];
 
-    const prompt = buildPitchPrompt({
-      artistName,
-      trackTitle,
-      trackArtists,
-      trackGenre: (match.track as any)?.genre || null,
-      trackMood: (match.track as any)?.mood || null,
-      trackDescription: (match.track as any)?.description || null,
-      curatorName,
-      playlistName,
-      playlistDescription: (match.playlist as any)?.description || null,
-      playlistGenres,
-      channel,
-    });
+    const spotifyTrackId = match.track?.spotifyTrackId;
+    const spotifyUrl = spotifyTrackId
+      ? `https://open.spotify.com/track/${spotifyTrackId}`
+      : "";
 
     let subject = "";
-let body = "";
+    let body = "";
 
-try {
-  const aiRawResponse = await generateTextFromAi(prompt);
-  const parsed = parseAiPitch(aiRawResponse);
-  subject = parsed.subject;
-  body = parsed.body;
-} catch (aiError) {
-  const fallback = buildFallbackPitch({
-    artistName,
-    trackTitle,
-    curatorName,
-    playlistName,
-    playlistGenres,
-    playlistDescription: (match.playlist as any)?.description || null,
-  });
+    // ======================
+    // 🔥 TRY AI
+    // ======================
+    try {
+      const prompt = buildPitchPrompt({
+        artistName,
+        trackTitle,
+        trackArtists,
+        trackGenre: (match.track as any)?.genre || null,
+        trackMood: (match.track as any)?.mood || null,
+        trackDescription: (match.track as any)?.description || null,
+        curatorName,
+        playlistName,
+        playlistDescription: (match.playlist as any)?.description || null,
+        playlistGenres,
+        channel,
+      });
 
-  subject = fallback.subject;
-  body = fallback.body;
-}
+      const aiRaw = await generateTextFromAi(prompt);
+      const parsed = parseAiPitch(aiRaw);
 
-if (trackSpotifyUrl) {
-  const lowerBody = body.toLowerCase();
+      subject = parsed.subject;
+      body = parsed.body;
+    } catch (err) {
+      // ======================
+      // 🔥 FALLBACK (REGGAE STYLE)
+      // ======================
+      const fallback = generatePitch({
+        curatorName,
+        playlistName,
+        trackTitle,
+        artistName,
+        genres: playlistGenres,
+        tempo: (match.track as any)?.audioFeatures?.tempo,
+      });
 
-  if (!lowerBody.includes("open.spotify.com/track/")) {
-    body = `${body.trim()}
+      subject = fallback.subject;
+      body = fallback.body;
+    }
 
-Spotify link:
-${trackSpotifyUrl}`;
-  }
-}
+    // ======================
+    // 🔥 CLEANUP (SUPER IMPORTANT)
+    // ======================
+    body = body
+      .replace(/I hope this message finds you well\.?/gi, "")
+      .replace(/I wanted to share/gi, "Sending you")
+      .replace(/I'?m reaching out to share/gi, "Sending you")
+      .replace(/I believe (that )?/gi, "")
+      .replace(/I think (that )?/gi, "")
+      .replace(/I look forward to your thoughts\.?/gi, "")
+      .replace(/Thank you for considering.*$/gi, "")
+      .trim();
 
-// Remove AI fluff
-body = body.replace(
-  /I hope this message finds you well\.?/gi,
-  ""
-).trim();
+    // line breaks fix
+    body = body
+      .replace(/\.\s+/g, ".\n\n")
+      .replace(/\n{3,}/g, "\n\n");
 
-// Force shorter pitch (max ~600 chars)
-if (body.length > 600) {
-  body = body.slice(0, 600).trim() + "...";
-}
+    // limit length
+    if (body.length > 600) {
+      body = body.slice(0, 600).trim() + "...";
+    }
 
-// Fix greeting formatting
-body = body.replace(
-  /^(Hi|Hello)\s+([^\n,]+),\s*/i,
-  (match, greeting, name) => `${greeting} ${name},\n\n`
-);
+    // ======================
+    // 🔥 ALWAYS ADD SPOTIFY LINK
+    // ======================
+    if (spotifyUrl) {
+      body += `\n\nSpotify:\n${spotifyUrl}`;
+    }
 
+    // ======================
+    // 💾 SAVE
+    // ======================
     let savedPitch;
 
     if (match.pitch) {
@@ -169,10 +180,7 @@ body = body.replace(
       });
     }
 
-    return res.json({
-      ok: true,
-      pitch: savedPitch,
-    });
+    return res.json({ ok: true, pitch: savedPitch });
   } catch (error) {
     console.error("AI generate-and-save-pitch error:", error);
     return res.status(500).json({

@@ -6,33 +6,36 @@ export function generatePitch({
   genres,
   tempo,
 }: {
-  curatorName?: string | null
-  playlistName: string
-  trackTitle: string
-  artistName: string
-  genres: string[]
-  tempo?: number | null
+  curatorName?: string | null;
+  playlistName?: string | null;
+  trackTitle: string;
+  artistName: string;
+  genres?: string[] | null;
+  tempo?: number | null;
 }) {
+  const name = curatorName || "there";
+  const playlist = playlistName || "your playlist";
 
   const genreLine =
-    genres && genres.length
-      ? `It blends ${genres.slice(0, 3).join(", ")} influences`
-      : "It blends modern influences"
+    genres && genres.length > 0
+      ? genres.slice(0, 2).join(", ")
+      : "reggae / dub";
 
-  const tempoLine =
-    tempo ? `with a groove around ~${Math.round(tempo)} BPM` : ""
+  const vibeLine =
+    tempo && tempo > 0
+      ? `around ${Math.round(tempo)} BPM with a solid groove`
+      : "with a deep roots groove";
 
-  return `Hi ${curatorName || "there"},
+  return {
+    subject: `${artistName} — ${trackTitle} (for ${playlist})`,
 
-I came across your playlist "${playlistName}" and really liked the vibe.
+    body: `Hi ${name},
 
-My new track "${trackTitle}" by ${artistName} ${genreLine} ${tempoLine}, and I believe it could fit nicely with the sound you're curating.
+Sending you my new track "${trackTitle}" — ${genreLine} with ${vibeLine}.
 
-Spotify link:
-https://open.spotify.com/
+Feels like a natural fit for ${playlist}.
 
-If it fits your playlist, I'd really appreciate you considering it.
-
-Much respect,
-${artistName}`
+Respect,
+${artistName}`,
+  };
 }
