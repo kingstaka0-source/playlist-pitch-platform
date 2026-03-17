@@ -127,6 +127,12 @@ ${trackSpotifyUrl}`;
   }
 }
 
+// Fix greeting formatting
+body = body.replace(
+  /^(Hi|Hello)\s+([^\n,]+),\s*/i,
+  (match, greeting, name) => `${greeting} ${name},\n\n`
+);
+
     let savedPitch;
 
     if (match.pitch) {
