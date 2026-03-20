@@ -1,6 +1,9 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
+
+// 🔥 FIXED IMPORT (BELANGRIJK)
 import { generatePitch } from "../pitch/generatePitch";
+
 import { buildPitchPrompt } from "../services/ai/buildPitchPrompt";
 import { parseAiPitch } from "../services/ai/parseAiPitch";
 import { generateTextFromAi } from "../services/ai/generateTextFromAi";
@@ -115,13 +118,14 @@ router.post("/generate-and-save-pitch", async (req, res) => {
         trackTitle,
         artistName,
         genres: playlistGenres,
-        tempo: (match.track as any)?.audioFeatures?.tempo,
+        tempo: (match.track as any)?.tempo,
       });
 
       subject = fallback.subject;
       body = fallback.body;
     }
 
+    body = body || "";
     // ======================
     // 🔥 CLEANUP (SUPER IMPORTANT)
     // ======================
@@ -145,6 +149,7 @@ router.post("/generate-and-save-pitch", async (req, res) => {
       body = body.slice(0, 600).trim() + "...";
     }
 
+    
     // ======================
     // 🔥 ALWAYS ADD SPOTIFY LINK
     // ======================
