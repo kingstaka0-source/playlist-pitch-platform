@@ -88,8 +88,6 @@ Writing style:
 - No emojis
 - No hashtags
 - No bullet points
-`;
-}
 
 IMPORTANT:
 - Keep the pitch SHORT (max 4–5 lines)
@@ -102,3 +100,5 @@ STYLE:
 - Casual but respectful
 - No corporate language
 - No fluff
+`;
+}
