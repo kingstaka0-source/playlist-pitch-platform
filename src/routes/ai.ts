@@ -113,13 +113,13 @@ router.post("/generate-and-save-pitch", async (req, res) => {
       // 🔥 FALLBACK (REGGAE STYLE)
       // ======================
       const fallback = generatePitch({
-        curatorName,
-        playlistName,
-        trackTitle,
-        artistName,
-        genres: playlistGenres,
-        tempo: (match.track as any)?.tempo,
-      });
+  curatorName,
+  playlistName,
+  trackTitle,
+  artistName,
+  genres: playlistGenres,
+  tempo: null,
+});
 
       subject = fallback.subject;
       body = fallback.body;
