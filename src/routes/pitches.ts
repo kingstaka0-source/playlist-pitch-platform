@@ -106,7 +106,7 @@ async function buildAiPitchForMatch(match: any, channel: string) {
       curatorName,
       playlistName,
       playlistGenres,
-      channel,
+      channel: (channel === "INAPP" ? "INAPP" : "EMAIL") as "EMAIL" | "INAPP",
     });
 
     const aiRaw = await generateTextFromAi(prompt);
@@ -160,6 +160,9 @@ router.post("/", async (req, res) => {
   }
 
   const usage = await getUsageOr404(artistId);
+  if (!usage) {
+  return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+}
   if (usage.plan === "FREE" && !usage.allowed) {
     return denyFreeLimit(res, usage);
   }
