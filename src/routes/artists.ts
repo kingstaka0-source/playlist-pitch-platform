@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db";
+import { stripe, FRONTEND_URL, STRIPE_PRICE_ID } from "../stripe";
 
 console.log("ARTISTS ROUTE FILE LOADED ✅", __filename);
 
@@ -24,7 +25,8 @@ function startOfCurrentMonthUtc() {
 }
 
 /**
- * Auto-downgrade als TRIAL verlopen is.
+ * Auto-downgrade als TRIAL lokaal verlopen is.
+ * Voor Stripe-trials zal webhook leidend zijn, maar deze fallback mag blijven.
  */
 export async function normalizeArtistPlan(artistId: string) {
   const artist = await prisma.artist.findUnique({ where: { id: artistId } });
@@ -37,7 +39,10 @@ export async function normalizeArtistPlan(artistId: string) {
   ) {
     return await prisma.artist.update({
       where: { id: artistId },
-      data: { plan: "FREE", trialUntil: null },
+      data: {
+        plan: "FREE",
+        trialUntil: null,
+      },
     });
   }
 
@@ -178,12 +183,24 @@ artists.get("/artists/:id/usage", async (req, res) => {
 });
 
 /**
- * Start trial
+ * Start Stripe-based 7-day trial with card upfront
  */
 artists.post("/artists/:id/start-trial", async (req, res) => {
   try {
     const artistId = req.params.id;
-    const artist = await normalizeArtistPlan(artistId);
+
+    const artist = await prisma.artist.findUnique({
+      where: { id: artistId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        plan: true,
+        trialUntil: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+      },
+    });
 
     if (!artist) {
       return res.status(404).json({ error: "Artist not found" });
@@ -213,20 +230,60 @@ artists.post("/artists/:id/start-trial", async (req, res) => {
       });
     }
 
-    const now = new Date();
-    const endsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    let customerId = artist.stripeCustomerId || null;
 
-    const updated = await prisma.artist.update({
-      where: { id: artistId },
-      data: { plan: "TRIAL", trialUntil: endsAt },
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: artist.email || undefined,
+        name: artist.name || undefined,
+        metadata: {
+          artistId: artist.id,
+        },
+      });
+
+      customerId = customer.id;
+
+      await prisma.artist.update({
+        where: { id: artist.id },
+        data: {
+          stripeCustomerId: customerId,
+        },
+      });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: STRIPE_PRICE_ID,
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        trial_period_days: 7,
+        metadata: {
+          artistId: artist.id,
+          plan: "PRO",
+          source: "trial",
+        },
+      },
+      metadata: {
+        artistId: artist.id,
+        plan: "PRO",
+        source: "trial",
+      },
+      allow_promotion_codes: true,
+      success_url: `${FRONTEND_URL}/upgrade?success=1`,
+      cancel_url: `${FRONTEND_URL}/upgrade?canceled=1`,
     });
 
     return res.json({
       ok: true,
-      message: "Trial started (7 days)",
-      artistId,
-      plan: updated.plan,
-      trial: { until: updated.trialUntil },
+      url: session.url,
+      sessionId: session.id,
+      message: "Stripe trial checkout created",
     });
   } catch (err: any) {
     console.error("START TRIAL ERROR", err?.message ?? err);
@@ -238,7 +295,8 @@ artists.post("/artists/:id/start-trial", async (req, res) => {
 });
 
 /**
- * Cancel trial
+ * Cancel local trial or mark free.
+ * Voor PRO moet echte cancel via billing portal gebeuren.
  */
 artists.post("/artists/:id/cancel-trial", async (req, res) => {
   try {
@@ -252,7 +310,7 @@ artists.post("/artists/:id/cancel-trial", async (req, res) => {
     if (artist.plan === "PRO") {
       return res.json({
         ok: true,
-        message: "PRO (billing cancel later)",
+        message: "PRO active. Use billing portal to manage subscription.",
         artistId,
         plan: "PRO",
         trial: null,
@@ -261,7 +319,10 @@ artists.post("/artists/:id/cancel-trial", async (req, res) => {
 
     const updated = await prisma.artist.update({
       where: { id: artistId },
-      data: { plan: "FREE", trialUntil: null },
+      data: {
+        plan: "FREE",
+        trialUntil: null,
+      },
     });
 
     return res.json({
