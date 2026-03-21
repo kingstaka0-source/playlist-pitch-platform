@@ -70,15 +70,26 @@ async function getUsageOr404(artistId: string) {
 function denyFreeLimit(res: any, usage: any) {
   return res.status(403).json({
     error: "FREE_LIMIT_REACHED",
-    message: "FREE plan allows 3 created pitches per month.",
-    usage: usage?.month ?? null,
+    message: "FREE plan allows 3 created pitches per month. Upgrade to PRO for unlimited pitches.",
+    upgradeRequired: true,
+    paywall: {
+      plan: usage?.plan ?? "FREE",
+      feature: "PITCH_CREATE_LIMIT",
+      month: usage?.month ?? null,
+    },
   });
 }
 
-function denyPaidRequired(res: any, message: string) {
+function denyPaidRequired(res: any, usage: any, message: string) {
   return res.status(403).json({
     error: "PAID_PLAN_REQUIRED",
     message,
+    upgradeRequired: true,
+    paywall: {
+      plan: usage?.plan ?? "FREE",
+      feature: "PRO_ONLY",
+      month: usage?.month ?? null,
+    },
   });
 }
 
@@ -134,92 +145,159 @@ async function buildAiPitchForMatch(match: any, channel: string) {
 }
 
 /**
- * CREATE
+ * CREATE SINGLE PITCH
+ * FREE = max 3 created pitches/month
+ * TRIAL / PRO = unlimited
  */
 router.post("/", async (req, res) => {
-  const artistId = getArtistId(req);
-  const matchId = req.body?.matchId;
+  try {
+    const artistId = getArtistId(req);
+    const matchId = req.body?.matchId;
 
-  if (!artistId || !matchId) {
-    return res.status(400).json({ error: "Missing data" });
-  }
+    if (!artistId || !matchId) {
+      return res.status(400).json({ error: "Missing data" });
+    }
 
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: {
-      track: true,
-      playlist: { include: { curator: true } },
-      pitch: true,
-    },
-  });
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        track: true,
+        playlist: { include: { curator: true } },
+        pitch: true,
+      },
+    });
 
-  if (!match) return res.status(404).json({ error: "Match not found" });
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
 
-  if (match.pitch) {
-    return res.json({ ok: true, pitch: match.pitch });
-  }
+    if (match.track.artistId !== artistId) {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: "This match does not belong to the current artist.",
+      });
+    }
 
-  const usage = await getUsageOr404(artistId);
-  if (!usage) {
-  return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
-}
-  if (usage.plan === "FREE" && !usage.allowed) {
-    return denyFreeLimit(res, usage);
-  }
+    if (match.pitch) {
+      return res.json({ ok: true, pitch: match.pitch });
+    }
 
-  const pitch = await prisma.pitch.create({
-    data: {
-      matchId,
-      subject: `Track suggestion: ${match.track.title}`,
-      body: "",
-      status: "DRAFT",
-      channel: "EMAIL",
-    },
-  });
+    const usage = await getUsageOr404(artistId);
 
-  res.json({ ok: true, pitch });
-});
+    if (!usage) {
+      return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+    }
 
-/**
- * LAUNCH CAMPAIGN (BELANGRIJK)
- */
-router.post("/launch-campaign", async (req, res) => {
-  const artistId = getArtistId(req);
-  const { trackId } = req.body;
+    if (usage.plan === "FREE" && !usage.allowed) {
+      return denyFreeLimit(res, usage);
+    }
 
-  const matches = await prisma.match.findMany({
-    where: {
-      trackId,
-      track: { artistId },
-    },
-    include: {
-      track: true,
-      playlist: { include: { curator: true } },
-      pitch: true,
-    },
-  });
-
-  let created = 0;
-
-  for (const match of matches) {
-    if (match.pitch) continue;
-
-    const aiPitch = await buildAiPitchForMatch(match, "EMAIL");
-
-    await prisma.pitch.create({
+    const pitch = await prisma.pitch.create({
       data: {
-        matchId: match.id,
-        subject: aiPitch.subject,
-        body: aiPitch.body,
+        matchId,
+        subject: `Track suggestion: ${match.track.title}`,
+        body: "",
         status: "DRAFT",
         channel: "EMAIL",
       },
     });
 
-    created++;
+    return res.json({ ok: true, pitch });
+  } catch (error: any) {
+    console.error("CREATE_PITCH_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "CREATE_PITCH_FAILED",
+      message: error?.message ?? String(error),
+    });
   }
+});
 
-  res.json({ ok: true, created });
+/**
+ * LAUNCH CAMPAIGN
+ * FREE = blocked
+ * TRIAL / PRO = allowed
+ */
+router.post("/launch-campaign", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+    const { trackId } = req.body as LaunchCampaignRequestBody;
+
+    if (!artistId || typeof trackId !== "string" || !trackId.trim()) {
+      return res.status(400).json({
+        error: "MISSING_DATA",
+        message: "artistId and trackId are required",
+      });
+    }
+
+    const usage = await getUsageOr404(artistId);
+
+    if (!usage) {
+      return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+    }
+
+    if (usage.plan === "FREE") {
+      return denyPaidRequired(
+        res,
+        usage,
+        "Campaign launch is available on TRIAL or PRO."
+      );
+    }
+
+    const matches = await prisma.match.findMany({
+      where: {
+        trackId,
+        track: { artistId },
+      },
+      include: {
+        track: true,
+        playlist: { include: { curator: true } },
+        pitch: true,
+      },
+    });
+
+    let created = 0;
+    let skippedExisting = 0;
+    let skippedNoEmail = 0;
+
+    for (const match of matches) {
+      if (match.pitch) {
+        skippedExisting++;
+        continue;
+      }
+
+      if (!canEmailCurator(match.playlist?.curator)) {
+        skippedNoEmail++;
+        continue;
+      }
+
+      const aiPitch = await buildAiPitchForMatch(match, "EMAIL");
+
+      await prisma.pitch.create({
+        data: {
+          matchId: match.id,
+          subject: aiPitch.subject,
+          body: aiPitch.body,
+          status: "DRAFT",
+          channel: "EMAIL",
+        },
+      });
+
+      created++;
+    }
+
+    return res.json({
+      ok: true,
+      created,
+      skippedExisting,
+      skippedNoEmail,
+    });
+  } catch (error: any) {
+    console.error("LAUNCH_CAMPAIGN_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "LAUNCH_CAMPAIGN_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
 });
 
 export default router;

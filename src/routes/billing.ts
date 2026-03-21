@@ -181,3 +181,77 @@ billing.post("/create-portal-session", async (req, res) => {
     });
   }
 });
+
+billing.get("/access", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+
+    if (!artistId) {
+      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
+    }
+
+    const artist = await prisma.artist.findUnique({
+      where: { id: artistId },
+      select: {
+        id: true,
+        plan: true,
+        trialUntil: true,
+        subscriptionStatus: true,
+        currentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+      },
+    });
+
+    if (!artist) {
+      return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+    }
+
+    const start = new Date();
+    const monthStart = new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1, 0, 0, 0)
+    );
+
+    const createdThisMonth = await prisma.pitch.count({
+      where: {
+        createdAt: { gte: monthStart },
+        match: {
+          track: { artistId },
+        },
+      },
+    });
+
+    const isPaid = artist.plan === "TRIAL" || artist.plan === "PRO";
+    const freeLimit = 3;
+    const remaining = isPaid ? null : Math.max(0, freeLimit - createdThisMonth);
+
+    return res.json({
+      ok: true,
+      access: {
+        plan: artist.plan,
+        isPaid,
+        trialUntil: artist.trialUntil,
+        subscriptionStatus: artist.subscriptionStatus,
+        currentPeriodEnd: artist.currentPeriodEnd,
+        cancelAtPeriodEnd: artist.cancelAtPeriodEnd,
+        limits: {
+          pitchesPerMonth: isPaid ? null : freeLimit,
+          createdThisMonth,
+          remaining,
+        },
+        features: {
+          canCreatePitch: isPaid ? true : createdThisMonth < freeLimit,
+          canLaunchCampaign: isPaid,
+          canAutoSend: isPaid,
+          canBulkQueue: isPaid,
+          canUseUnlimitedPitches: isPaid,
+        },
+      },
+    });
+  } catch (e: any) {
+    console.error("BILLING_ACCESS_ERROR", e?.message ?? e);
+    return res.status(500).json({
+      error: "BILLING_ACCESS_FAILED",
+      message: e?.message ?? String(e),
+    });
+  }
+});
