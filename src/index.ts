@@ -22,6 +22,7 @@ import { matchJobs } from "./routes/matchJobs";
 import { requireLegal } from "./legalGate";
 import { spotifyDebug } from "./routes/spotifyDebug";
 import ai from "./routes/ai";
+import "./worker";
 
 const app = express();
 
@@ -157,7 +158,7 @@ app.use(playlists);
 app.use(matches);
 app.use("/pitches", pitches);
 app.use(intake);
-app.use(billing);
+app.use("/billing", billing);
 app.use(dashboard);
 app.use(matchJobs);
 app.use(spotifyDebug);
@@ -247,7 +248,12 @@ app.use("/api", (_req, res) => {
 });
 
 app.use(
-  (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
     const message = err instanceof Error ? err.message : "INTERNAL_SERVER_ERROR";
     console.error("EXPRESS_ERROR", err);
 

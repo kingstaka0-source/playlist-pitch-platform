@@ -16,7 +16,7 @@ function getArtistId(req: any) {
   return String(headerArtistId || queryArtistId || "").trim();
 }
 
-billing.get("/billing/status", async (req, res) => {
+billing.get("/status", async (req, res) => {
   try {
     const artistId = getArtistId(req);
 
@@ -57,7 +57,7 @@ billing.get("/billing/status", async (req, res) => {
   }
 });
 
-billing.post("/billing/create-checkout-session", async (req, res) => {
+billing.post("/create-checkout-session", async (req, res) => {
   try {
     const artistId = getArtistId(req);
 
@@ -138,7 +138,7 @@ billing.post("/billing/create-checkout-session", async (req, res) => {
   }
 });
 
-billing.post("/billing/create-portal-session", async (req, res) => {
+billing.post("/create-portal-session", async (req, res) => {
   try {
     const artistId = getArtistId(req);
 
