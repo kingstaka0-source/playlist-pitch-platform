@@ -28,6 +28,7 @@ function mapStripeStatusToAppStatus(status?: string | null): AppSubscriptionStat
     case "canceled":
       return "CANCELED";
     case "incomplete":
+    case "incomplete_expired":
       return "INCOMPLETE";
     default:
       return "NONE";
@@ -36,7 +37,15 @@ function mapStripeStatusToAppStatus(status?: string | null): AppSubscriptionStat
 
 function mapStripeStatusToPlan(status?: string | null): AppPlan {
   if (status === "trialing") return "TRIAL";
-  if (status === "active" || status === "past_due") return "PRO";
+
+  if (
+    status === "active" ||
+    status === "past_due" ||
+    status === "incomplete"
+  ) {
+    return "PRO";
+  }
+
   return "FREE";
 }
 
@@ -77,20 +86,34 @@ async function upsertFromSubscription(sub: any) {
   }
 
   const subscriptionStatus = mapStripeStatusToAppStatus(sub.status);
-  const currentPeriodEnd = toDate(sub.current_period_end);
+
+  const currentPeriodEnd =
+    toDate(sub.current_period_end) ?? toDate(sub.trial_end) ?? null;
+
   const plan = mapStripeStatusToPlan(sub.status);
 
   await prisma.artist.update({
     where: { id: artist.id },
     data: {
       plan,
-      trialUntil: sub.status === "trialing" ? currentPeriodEnd : null,
+      trialUntil: sub.status === "trialing" ? toDate(sub.trial_end) ?? currentPeriodEnd : null,
       stripeCustomerId: customerId ?? artist.stripeCustomerId,
       stripeSubscriptionId: subId,
       subscriptionStatus,
       currentPeriodEnd,
       cancelAtPeriodEnd: !!sub.cancel_at_period_end,
     },
+  });
+
+  console.log("WEBHOOK_SUBSCRIPTION_SYNCED", {
+    artistId: artist.id,
+    subId,
+    customerId,
+    status: sub.status,
+    mappedStatus: subscriptionStatus,
+    plan,
+    currentPeriodEnd,
+    cancelAtPeriodEnd: !!sub.cancel_at_period_end,
   });
 }
 
@@ -112,6 +135,12 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       STRIPE_WEBHOOK_SECRET
     );
 
+    console.log("STRIPE_WEBHOOK_RECEIVED", {
+      id: event.id,
+      type: event.type,
+      livemode: event.livemode,
+    });
+
     switch (event.type) {
       case "checkout.session.completed": {
         const session: any = event.data.object;
@@ -119,6 +148,8 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         const artistId =
           typeof session.metadata?.artistId === "string"
             ? session.metadata.artistId
+            : typeof session.client_reference_id === "string"
+            ? session.client_reference_id
             : "";
 
         const customerId =
@@ -135,12 +166,22 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           await prisma.artist.update({
             where: { id: artistId },
             data: {
-              plan: "PRO",
-              subscriptionStatus: "ACTIVE",
               ...(customerId ? { stripeCustomerId: customerId } : {}),
               ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
             },
           });
+
+          console.log("WEBHOOK_CHECKOUT_LINKED", {
+            artistId,
+            customerId,
+            subscriptionId,
+            sessionId: session.id,
+          });
+        }
+
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          await upsertFromSubscription(subscription);
         }
 
         break;
@@ -179,6 +220,16 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
               stripeSubscriptionId: null,
             },
           });
+
+          console.log("WEBHOOK_SUBSCRIPTION_DELETED", {
+            artistId: artist.id,
+            subId,
+          });
+        } else {
+          console.warn("WEBHOOK_DELETE_NO_ARTIST_FOUND", {
+            subId,
+            customer: sub.customer,
+          });
         }
 
         break;
@@ -201,6 +252,12 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
                 subscriptionStatus: "PAST_DUE",
                 plan: "PRO",
               },
+            });
+
+            console.warn("WEBHOOK_INVOICE_PAYMENT_FAILED", {
+              artistId: artist.id,
+              subId,
+              invoiceId: inv.id,
             });
           }
         }
@@ -226,6 +283,12 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
                 plan: "PRO",
               },
             });
+
+            console.log("WEBHOOK_INVOICE_PAYMENT_SUCCEEDED", {
+              artistId: artist.id,
+              subId,
+              invoiceId: inv.id,
+            });
           }
         }
 
@@ -233,6 +296,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       }
 
       default:
+        console.log("STRIPE_WEBHOOK_IGNORED", event.type);
         break;
     }
 

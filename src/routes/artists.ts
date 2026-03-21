@@ -252,32 +252,33 @@ artists.post("/artists/:id/start-trial", async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price: STRIPE_PRICE_ID,
-          quantity: 1,
-        },
-      ],
-      subscription_data: {
-        trial_period_days: 7,
-        metadata: {
-          artistId: artist.id,
-          plan: "PRO",
-          source: "trial",
-        },
-      },
-      metadata: {
-        artistId: artist.id,
-        plan: "PRO",
-        source: "trial",
-      },
-      allow_promotion_codes: true,
-      success_url: `${FRONTEND_URL}/upgrade?success=1`,
-      cancel_url: `${FRONTEND_URL}/upgrade?canceled=1`,
-    });
+  mode: "subscription",
+  customer: customerId,
+  client_reference_id: artist.id,
+  payment_method_types: ["card"],
+  line_items: [
+    {
+      price: STRIPE_PRICE_ID,
+      quantity: 1,
+    },
+  ],
+  subscription_data: {
+    trial_period_days: 7,
+    metadata: {
+      artistId: artist.id,
+      plan: "PRO",
+      source: "trial",
+    },
+  },
+  metadata: {
+    artistId: artist.id,
+    plan: "PRO",
+    source: "trial",
+  },
+  allow_promotion_codes: true,
+  success_url: `${FRONTEND_URL}/upgrade?success=1`,
+  cancel_url: `${FRONTEND_URL}/upgrade?canceled=1`,
+});
 
     return res.json({
       ok: true,

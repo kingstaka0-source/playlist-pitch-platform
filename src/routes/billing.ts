@@ -101,28 +101,30 @@ billing.post("/create-checkout-session", async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [
-        {
-          price: STRIPE_PRICE_ID,
-          quantity: 1,
-        },
-      ],
-      success_url: `${FRONTEND_URL}/upgrade?success=1`,
-      cancel_url: `${FRONTEND_URL}/pricing?canceled=1`,
-      allow_promotion_codes: true,
-      metadata: {
-        artistId: artist.id,
-        plan: "PRO",
-      },
-      subscription_data: {
-        metadata: {
-          artistId: artist.id,
-          plan: "PRO",
-        },
-      },
-    });
+  mode: "subscription",
+  customer: customerId,
+  client_reference_id: artist.id,
+  line_items: [
+    {
+      price: STRIPE_PRICE_ID,
+      quantity: 1,
+    },
+  ],
+  success_url: `${FRONTEND_URL}/upgrade?success=1`,
+  cancel_url: `${FRONTEND_URL}/pricing?canceled=1`,
+  allow_promotion_codes: true,
+  metadata: {
+    artistId: artist.id,
+    plan: "PRO",
+  },
+  subscription_data: {
+    trial_period_days: 7,
+    metadata: {
+      artistId: artist.id,
+      plan: "PRO",
+    },
+  },
+});
 
     return res.json({
       ok: true,
