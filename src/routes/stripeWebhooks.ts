@@ -7,20 +7,54 @@ function toDate(sec?: number | null) {
   return new Date(sec * 1000);
 }
 
+type AppSubscriptionStatus =
+  | "NONE"
+  | "TRIALING"
+  | "ACTIVE"
+  | "PAST_DUE"
+  | "CANCELED"
+  | "INCOMPLETE";
+
+type AppPlan = "FREE" | "TRIAL" | "PRO";
+
+function mapStripeStatusToAppStatus(status?: string | null): AppSubscriptionStatus {
+  switch (status) {
+    case "trialing":
+      return "TRIALING";
+    case "active":
+      return "ACTIVE";
+    case "past_due":
+      return "PAST_DUE";
+    case "canceled":
+      return "CANCELED";
+    case "incomplete":
+      return "INCOMPLETE";
+    default:
+      return "NONE";
+  }
+}
+
+function mapStripeStatusToPlan(status?: string | null): AppPlan {
+  if (status === "trialing") return "TRIAL";
+  if (status === "active" || status === "past_due") return "PRO";
+  return "FREE";
+}
+
 async function findArtistForSubscription(sub: any) {
   const customerId =
     typeof sub.customer === "string" ? sub.customer : sub.customer?.id || null;
 
-  const artistIdFromMeta = typeof sub.metadata?.artistId === "string"
-    ? sub.metadata.artistId
-    : undefined;
+  const artistIdFromMeta =
+    typeof sub.metadata?.artistId === "string" ? sub.metadata.artistId : "";
 
   const artist =
     (artistIdFromMeta
       ? await prisma.artist.findUnique({ where: { id: artistIdFromMeta } })
       : null) ??
     (customerId
-      ? await prisma.artist.findFirst({ where: { stripeCustomerId: customerId } })
+      ? await prisma.artist.findFirst({
+          where: { stripeCustomerId: customerId },
+        })
       : null);
 
   return {
@@ -42,28 +76,9 @@ async function upsertFromSubscription(sub: any) {
     return;
   }
 
-  let subscriptionStatus:
-    | "NONE"
-    | "TRIALING"
-    | "ACTIVE"
-    | "PAST_DUE"
-    | "CANCELED"
-    | "INCOMPLETE" = "NONE";
-
-  if (sub.status === "trialing") subscriptionStatus = "TRIALING";
-  else if (sub.status === "active") subscriptionStatus = "ACTIVE";
-  else if (sub.status === "past_due") subscriptionStatus = "PAST_DUE";
-  else if (sub.status === "canceled") subscriptionStatus = "CANCELED";
-  else if (sub.status === "incomplete") subscriptionStatus = "INCOMPLETE";
-
+  const subscriptionStatus = mapStripeStatusToAppStatus(sub.status);
   const currentPeriodEnd = toDate(sub.current_period_end);
-
-  const plan: "FREE" | "TRIAL" | "PRO" =
-    sub.status === "trialing"
-      ? "TRIAL"
-      : sub.status === "active" || sub.status === "past_due"
-      ? "PRO"
-      : "FREE";
+  const plan = mapStripeStatusToPlan(sub.status);
 
   await prisma.artist.update({
     where: { id: artist.id },
@@ -87,6 +102,10 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       return res.status(400).send("Missing stripe-signature");
     }
 
+    if (!STRIPE_WEBHOOK_SECRET) {
+      return res.status(500).send("Missing STRIPE_WEBHOOK_SECRET");
+    }
+
     const event = stripe.webhooks.constructEvent(
       req.body,
       sig,
@@ -96,6 +115,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session: any = event.data.object;
+
         const artistId =
           typeof session.metadata?.artistId === "string"
             ? session.metadata.artistId
@@ -116,6 +136,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
             where: { id: artistId },
             data: {
               plan: "PRO",
+              subscriptionStatus: "ACTIVE",
               ...(customerId ? { stripeCustomerId: customerId } : {}),
               ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
             },
@@ -127,7 +148,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
 
       case "customer.subscription.created":
       case "customer.subscription.updated": {
-        const sub = event.data.object;
+        const sub: any = event.data.object;
         await upsertFromSubscription(sub);
         break;
       }
