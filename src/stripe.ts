@@ -7,7 +7,7 @@ if (!stripeSecretKey) {
 }
 
 export const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2024-06-20",
+  apiVersion: "2026-01-28.clover",
 });
 
 export const STRIPE_PRICE_ID = String(process.env.STRIPE_PRICE_ID || "").trim();
