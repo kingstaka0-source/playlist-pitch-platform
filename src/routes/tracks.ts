@@ -79,7 +79,15 @@ async function requirePaidPlan(artistId: string) {
   const usage = await getArtistUsage(artistId);
 
   if (!usage) {
-    return { ok: false as const, error: { status: 404, body: { error: "ARTIST_NOT_FOUND" } } };
+    return {
+      ok: false as const,
+      error: {
+        status: 404,
+        body: {
+          error: "ARTIST_NOT_FOUND",
+        },
+      },
+    };
   }
 
   if (usage.plan === "FREE") {
@@ -90,7 +98,12 @@ async function requirePaidPlan(artistId: string) {
         body: {
           error: "PAID_PLAN_REQUIRED",
           message: "This feature is available for TRIAL and PRO only.",
-          usage: usage.month,
+          upgradeRequired: true,
+          paywall: {
+            plan: usage.plan,
+            feature: "PRO_ONLY",
+            month: usage.month,
+          },
         },
       },
     };
