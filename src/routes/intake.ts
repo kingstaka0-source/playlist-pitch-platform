@@ -93,14 +93,7 @@ if (!artist) {
   return res.status(404).json({ error: "Artist not found" });
 }
 
-const now = new Date();
-const isTrialActive =
-  artist.plan === "TRIAL" &&
-  artist.trialUntil &&
-  artist.trialUntil > now;
-
-const isPro = artist.plan === "PRO";
-const canAutoMatch = isPro || isTrialActive;
+const canAutoMatch = true;
 
 
     const trackId = extractSpotifyTrackId(
