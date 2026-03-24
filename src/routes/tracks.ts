@@ -50,26 +50,57 @@ function resolveRecipient(input: {
 }
 
 function getArtistId(req: any) {
-  return req?.legal?.artistId || String(req.headers?.["x-artist-id"] || "").trim();
+  return (
+    req?.legal?.artistId ||
+    String(req.headers?.["x-artist-id"] || req.query?.artistId || "").trim()
+  );
 }
 
-async function requireOwnedTrack(trackId: string, artistId: string) {
-  const track = await prisma.track.findUnique({
-    where: { id: trackId },
+async function findTrackByAnyId(id: string) {
+  return prisma.track.findFirst({
+    where: {
+      OR: [{ id }, { spotifyTrackId: id }],
+    },
     select: {
       id: true,
       title: true,
       artistId: true,
       spotifyTrackId: true,
+      artists: true,
+      durationMs: true,
+      createdAt: true,
+      audioFeatures: true,
+      genres: true,
+      _count: {
+        select: {
+          matches: true,
+        },
+      },
     },
   });
+}
+
+async function requireOwnedTrack(trackId: string, artistId: string) {
+  const track = await findTrackByAnyId(trackId);
 
   if (!track) {
-    return { ok: false as const, error: { status: 404, body: { error: "TRACK_NOT_FOUND" } } };
+    return {
+      ok: false as const,
+      error: {
+        status: 404,
+        body: { error: "TRACK_NOT_FOUND" },
+      },
+    };
   }
 
   if (track.artistId !== artistId) {
-    return { ok: false as const, error: { status: 403, body: { error: "FORBIDDEN_TRACK" } } };
+    return {
+      ok: false as const,
+      error: {
+        status: 403,
+        body: { error: "FORBIDDEN_TRACK" },
+      },
+    };
   }
 
   return { ok: true as const, track };
@@ -152,24 +183,20 @@ tracks.get("/tracks", async (_req, res) => {
  */
 tracks.get("/tracks/:id", async (req, res) => {
   try {
-    const id = String(req.params.id || "");
-    if (!id) return res.status(400).json({ error: "id required" });
+    const id = String(req.params.id || "").trim();
 
-    let track = await prisma.track.findUnique({
-  where: { id },
-});
+    if (!id) {
+      return res.status(400).json({ error: "MISSING_TRACK_ID" });
+    }
 
-if (!track) {
-  track = await prisma.track.findUnique({
-    where: { spotifyTrackId: id },
-  });
-}
+    const track = await findTrackByAnyId(id);
 
-if (!track) {
-  return res.status(404).json({ error: "Track not found" });
-}
-
-    if (!track) return res.status(404).json({ error: "Track not found" });
+    if (!track) {
+      return res.status(404).json({
+        error: "Track not found",
+        requestedId: id,
+      });
+    }
 
     return res.json({
       id: track.id,
@@ -197,7 +224,16 @@ if (!track) {
  */
 tracks.post("/tracks/manual", async (req, res) => {
   try {
-    const { artistId, title, tempo, energy, valence, loudness = -10, mode = 1 } = req.body ?? {};
+    const {
+      artistId,
+      title,
+      tempo,
+      energy,
+      valence,
+      loudness = -10,
+      mode = 1,
+    } = req.body ?? {};
+
     if (!artistId || !title) {
       return res.status(400).json({ error: "artistId and title required" });
     }
@@ -239,8 +275,11 @@ tracks.post("/tracks/manual", async (req, res) => {
 tracks.post("/tracks/import", async (req, res) => {
   try {
     const { artistId, spotifyTrackId } = req.body ?? {};
+
     if (!artistId || !spotifyTrackId) {
-      return res.status(400).json({ error: "artistId and spotifyTrackId required" });
+      return res
+        .status(400)
+        .json({ error: "artistId and spotifyTrackId required" });
     }
 
     const appToken = await getSpotifyAppAccessToken();
@@ -249,7 +288,11 @@ tracks.post("/tracks/import", async (req, res) => {
     try {
       meta = await getTrackMeta(appToken, spotifyTrackId);
     } catch (e: any) {
-      console.error("SPOTIFY META ERROR", e?.response?.status, e?.response?.data);
+      console.error(
+        "SPOTIFY META ERROR",
+        e?.response?.status,
+        e?.response?.data
+      );
       return res.status(502).json({
         error: "spotify meta failed",
         spotifyStatus: e?.response?.status,
@@ -261,12 +304,18 @@ tracks.post("/tracks/import", async (req, res) => {
     try {
       feat = await getTrackAudioFeatures(appToken, spotifyTrackId);
     } catch (e: any) {
-      console.warn("SPOTIFY FEATURES WARNING (continuing)", e?.response?.status, e?.response?.data);
+      console.warn(
+        "SPOTIFY FEATURES WARNING (continuing)",
+        e?.response?.status,
+        e?.response?.data
+      );
       feat = {};
     }
 
     const title = String(meta?.name || "");
-    const artists = (meta?.artists || []).map((a: any) => a?.name).filter(Boolean);
+    const artists = (meta?.artists || [])
+      .map((a: any) => a?.name)
+      .filter(Boolean);
     const durationMs = Number(meta?.duration_ms || 0);
 
     if (!title || !artists.length || !durationMs) {
@@ -334,9 +383,11 @@ tracks.post("/tracks/:id/send-all", async (req, res) => {
       return res.status(owned.error.status).json(owned.error.body);
     }
 
+    const resolvedTrackId = owned.track.id;
+
     const pitches = await prisma.pitch.findMany({
       where: {
-        match: { trackId },
+        match: { trackId: resolvedTrackId },
         status: "DRAFT",
       },
       include: {
@@ -430,7 +481,7 @@ tracks.post("/tracks/:id/send-all", async (req, res) => {
 
     return res.json({
       ok: true,
-      trackId,
+      trackId: resolvedTrackId,
       total: results.length,
       sentCount,
       failedCount,
@@ -471,10 +522,10 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
       return res.status(owned.error.status).json(owned.error.body);
     }
 
-    const track = owned.track;
+    const resolvedTrackId = owned.track.id;
 
     const matches = await prisma.match.findMany({
-      where: { trackId },
+      where: { trackId: resolvedTrackId },
       include: {
         track: true,
         playlist: {
@@ -604,7 +655,7 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
 
     return res.json({
       ok: true,
-      trackId: track.id,
+      trackId: resolvedTrackId,
       total: results.length,
       sentCount,
       failedCount,
