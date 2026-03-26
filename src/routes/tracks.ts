@@ -189,7 +189,27 @@ tracks.get("/tracks/:id", async (req, res) => {
       return res.status(400).json({ error: "MISSING_TRACK_ID" });
     }
 
-    const track = await findTrackByAnyId(id);
+    const track = await prisma.track.findFirst({
+      where: {
+        OR: [{ id }, { spotifyTrackId: id }],
+      },
+      select: {
+        id: true,
+        artistId: true,
+        spotifyTrackId: true,
+        title: true,
+        artists: true,
+        durationMs: true,
+        createdAt: true,
+        audioFeatures: true,
+        genres: true,
+        _count: {
+          select: {
+            matches: true,
+          },
+        },
+      },
+    });
 
     if (!track) {
       return res.status(404).json({
