@@ -430,6 +430,9 @@ router.post("/:id/email", async (req, res) => {
 
     const track = pitch.match.track;
 
+    console.log("TRACK:", track);
+console.log("SPOTIFY TRACK ID:", track.spotifyTrackId);
+
 const spotifyUrl = track.spotifyTrackId
   ? `https://open.spotify.com/track/${track.spotifyTrackId}`
   : "";
