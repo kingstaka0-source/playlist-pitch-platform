@@ -70,7 +70,8 @@ async function getUsageOr404(artistId: string) {
 function denyFreeLimit(res: any, usage: any) {
   return res.status(403).json({
     error: "FREE_LIMIT_REACHED",
-    message: "FREE plan allows 3 created pitches per month. Upgrade to PRO for unlimited pitches.",
+    message:
+      "FREE plan allows 3 created pitches per month. Upgrade to PRO for unlimited pitches.",
     upgradeRequired: true,
     paywall: {
       plan: usage?.plan ?? "FREE",
@@ -145,6 +146,131 @@ async function buildAiPitchForMatch(match: any, channel: string) {
 }
 
 /**
+ * GET PITCHES
+ * Supports:
+ * - /pitches?trackId=...&artistId=...
+ * - /pitches?matchId=...&artistId=...
+ * - /pitches/all?artistId=...
+ */
+router.get("/", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+    const trackId =
+      typeof req.query.trackId === "string" ? req.query.trackId.trim() : "";
+    const matchId =
+      typeof req.query.matchId === "string" ? req.query.matchId.trim() : "";
+
+    if (!artistId) {
+      return res.status(400).json({
+        error: "MISSING_ARTIST_ID",
+        message: "artistId is required",
+      });
+    }
+
+    if (!trackId && !matchId) {
+      return res.status(400).json({
+        error: "MISSING_FILTER",
+        message: "trackId or matchId is required",
+      });
+    }
+
+    const pitches = await prisma.pitch.findMany({
+      where: {
+        ...(matchId ? { matchId } : {}),
+        ...(trackId
+          ? {
+              match: {
+                trackId,
+                track: {
+                  artistId,
+                },
+              },
+            }
+          : {
+              match: {
+                track: {
+                  artistId,
+                },
+              },
+            }),
+      },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.json(pitches);
+  } catch (error: any) {
+    console.error("GET_PITCHES_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "GET_PITCHES_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
+/**
+ * GET ALL PITCHES FOR ARTIST
+ */
+router.get("/all", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+
+    if (!artistId) {
+      return res.status(400).json({
+        error: "MISSING_ARTIST_ID",
+        message: "artistId is required",
+      });
+    }
+
+    const pitches = await prisma.pitch.findMany({
+      where: {
+        match: {
+          track: {
+            artistId,
+          },
+        },
+      },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.json(pitches);
+  } catch (error: any) {
+    console.error("GET_ALL_PITCHES_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "GET_ALL_PITCHES_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
+/**
  * CREATE SINGLE PITCH
  * FREE = max 3 created pitches/month
  * TRIAL / PRO = unlimited
@@ -207,6 +333,125 @@ router.post("/", async (req, res) => {
     console.error("CREATE_PITCH_ERROR", error?.message ?? error);
     return res.status(500).json({
       error: "CREATE_PITCH_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
+/**
+ * SEND SINGLE PITCH EMAIL
+ */
+router.post("/:id/email", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+    const pitchId =
+      typeof req.params.id === "string" ? req.params.id.trim() : "";
+
+    if (!artistId || !pitchId) {
+      return res.status(400).json({
+        error: "MISSING_DATA",
+        message: "artistId and pitch id are required",
+      });
+    }
+
+    const pitch = await prisma.pitch.findUnique({
+      where: { id: pitchId },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pitch) {
+      return res.status(404).json({
+        error: "PITCH_NOT_FOUND",
+      });
+    }
+
+    if (pitch.match.track.artistId !== artistId) {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: "This pitch does not belong to the current artist.",
+      });
+    }
+
+    const usage = await getUsageOr404(artistId);
+
+    if (!usage) {
+      return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+    }
+
+    if (usage.plan === "FREE") {
+      return denyPaidRequired(
+        res,
+        usage,
+        "Sending emails is available on TRIAL or PRO."
+      );
+    }
+
+    if (!resend) {
+      return res.status(500).json({
+        error: "RESEND_NOT_CONFIGURED",
+        message: "RESEND_API_KEY is missing",
+      });
+    }
+
+    const curator = pitch.match.playlist?.curator;
+    if (!canEmailCurator(curator)) {
+      return res.status(400).json({
+        error: "CURATOR_NOT_SENDABLE",
+        message: "Curator has no allowed email contact method.",
+      });
+    }
+
+    const to = resolveRecipient(curator?.email);
+    if (!to) {
+      return res.status(400).json({
+        error: "NO_RECIPIENT",
+        message: "No recipient email available.",
+      });
+    }
+
+    const from = String(process.env.EMAIL_FROM || "").trim();
+    if (!from) {
+      return res.status(500).json({
+        error: "EMAIL_FROM_MISSING",
+        message: "EMAIL_FROM is missing",
+      });
+    }
+
+    await resend.emails.send({
+      from,
+      to,
+      subject: pitch.subject || `Track suggestion: ${pitch.match.track.title}`,
+      text: pitch.body || "",
+    });
+
+    const updated = await prisma.pitch.update({
+      where: { id: pitch.id },
+      data: {
+        status: "SENT",
+        sentAt: new Date(),
+        sentTo: to,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      pitch: updated,
+    });
+  } catch (error: any) {
+    console.error("SEND_PITCH_EMAIL_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "SEND_PITCH_EMAIL_FAILED",
       message: error?.message ?? String(error),
     });
   }
