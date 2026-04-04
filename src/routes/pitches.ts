@@ -428,12 +428,24 @@ router.post("/:id/email", async (req, res) => {
       });
     }
 
-    await resend.emails.send({
-      from,
-      to,
-      subject: pitch.subject || `Track suggestion: ${pitch.match.track.title}`,
-      text: pitch.body || "",
-    });
+    const track = pitch.match.track;
+
+const spotifyUrl = track.spotifyTrackId
+  ? `https://open.spotify.com/track/${track.spotifyTrackId}`
+  : "";
+
+const finalBody = `
+${pitch.body || ""}
+
+${spotifyUrl ? `🎧 Listen on Spotify:\n${spotifyUrl}` : ""}
+`;
+
+await resend.emails.send({
+  from,
+  to,
+  subject: pitch.subject || `Track suggestion: ${track.title}`,
+  text: finalBody.trim(),
+});
 
     const updated = await prisma.pitch.update({
       where: { id: pitch.id },
