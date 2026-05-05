@@ -573,6 +573,7 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
     }
 
     const results: Array<{
+      let skippedCount = 0;
       matchId: string;
       pitchId?: string;
       ok: boolean;
@@ -628,15 +629,17 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
             },
           });
         } else if (existing.status === "SENT") {
-          results.push({
-            matchId: match.id,
-            pitchId: existing.id,
-            ok: false,
-            action: "SKIPPED_ALREADY_SENT",
-            error: "PITCH_ALREADY_SENT",
-          });
-          continue;
-        } else {
+  skippedCount++;
+
+  results.push({
+    matchId: match.id,
+    pitchId: existing.id,
+    ok: true,
+    action: "SKIPPED_ALREADY_SENT",
+  });
+
+  continue;
+} else {
           pitch = await prisma.pitch.update({
             where: { id: existing.id },
             data: {
@@ -683,17 +686,18 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
       }
     }
 
-    const sentCount = results.filter((r) => r.ok).length;
-    const failedCount = results.filter((r) => !r.ok).length;
+    const sentCount = results.filter((r) => r.ok && !r.action?.startsWith("SKIPPED")).length;
+const failedCount = results.filter((r) => !r.ok).length;
 
     return res.json({
-      ok: true,
-      trackId: resolvedTrackId,
-      total: results.length,
-      sentCount,
-      failedCount,
-      results,
-    });
+  ok: true,
+  trackId: resolvedTrackId,
+  total: results.length,
+  sentCount,
+  skippedCount,
+  failedCount,
+  results,
+});
   } catch (e: any) {
     console.error("TRACK_AUTO_PITCH_SEND_FAILED", e);
     return res.status(500).json({
