@@ -480,9 +480,15 @@ await resend.emails.send({
 router.post("/launch-campaign", async (req, res) => {
   try {
     const artistId = getArtistId(req);
-    const { trackId } = req.body as LaunchCampaignRequestBody;
+    const trackId =
+      typeof req.body?.trackId === "string" ? req.body.trackId.trim() : "";
 
-    if (!artistId || typeof trackId !== "string" || !trackId.trim()) {
+    const limit =
+      typeof req.body?.limit === "number" && req.body.limit > 0
+        ? Math.min(req.body.limit, 50)
+        : 20;
+
+    if (!artistId || !trackId) {
       return res.status(400).json({
         error: "MISSING_DATA",
         message: "artistId and trackId are required",
@@ -507,49 +513,75 @@ router.post("/launch-campaign", async (req, res) => {
       where: {
         trackId,
         track: { artistId },
+        playlist: {
+          curator: {
+            email: { not: null },
+            contactMethod: "EMAIL",
+            consent: true,
+            contactConfidence: { gte: 60 },
+          },
+        },
       },
       include: {
         track: true,
-        playlist: { include: { curator: true } },
+        playlist: {
+          include: {
+            curator: true,
+          },
+        },
         pitch: true,
       },
+      orderBy: {
+        fitScore: "desc",
+      },
+      take: limit,
     });
 
     let created = 0;
     let skippedExisting = 0;
     let skippedNoEmail = 0;
+    let failed = 0;
 
     for (const match of matches) {
-      if (match.pitch) {
-        skippedExisting++;
-        continue;
+      try {
+        if (match.pitch) {
+          skippedExisting++;
+          continue;
+        }
+
+        if (!canEmailCurator(match.playlist?.curator)) {
+          skippedNoEmail++;
+          continue;
+        }
+
+        const aiPitch = await buildAiPitchForMatch(match, "EMAIL");
+
+        await prisma.pitch.create({
+          data: {
+            matchId: match.id,
+            subject: aiPitch.subject,
+            body: aiPitch.body,
+            status: "DRAFT",
+            channel: "EMAIL",
+          },
+        });
+
+        created++;
+      } catch (error) {
+        failed++;
+        console.error("LAUNCH_CAMPAIGN_MATCH_FAILED", match.id, error);
       }
-
-      if (!canEmailCurator(match.playlist?.curator)) {
-        skippedNoEmail++;
-        continue;
-      }
-
-      const aiPitch = await buildAiPitchForMatch(match, "EMAIL");
-
-      await prisma.pitch.create({
-        data: {
-          matchId: match.id,
-          subject: aiPitch.subject,
-          body: aiPitch.body,
-          status: "DRAFT",
-          channel: "EMAIL",
-        },
-      });
-
-      created++;
     }
 
     return res.json({
       ok: true,
+      trackId,
+      limit,
+      eligibleMatches: matches.length,
       created,
       skippedExisting,
       skippedNoEmail,
+      failed,
     });
   } catch (error: any) {
     console.error("LAUNCH_CAMPAIGN_ERROR", error?.message ?? error);
