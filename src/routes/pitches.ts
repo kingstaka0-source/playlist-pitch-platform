@@ -560,4 +560,143 @@ router.post("/launch-campaign", async (req, res) => {
   }
 });
 
+router.post("/send-all", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+    const trackId =
+      typeof req.body?.trackId === "string" ? req.body.trackId.trim() : "";
+
+    if (!artistId || !trackId) {
+      return res.status(400).json({
+        error: "MISSING_DATA",
+        message: "artistId and trackId are required",
+      });
+    }
+
+    const usage = await getUsageOr404(artistId);
+
+    if (!usage) {
+      return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+    }
+
+    if (usage.plan === "FREE") {
+      return denyPaidRequired(
+        res,
+        usage,
+        "Bulk send is available on TRIAL or PRO."
+      );
+    }
+
+    if (!resend) {
+      return res.status(500).json({
+        error: "RESEND_NOT_CONFIGURED",
+        message: "RESEND_API_KEY is missing",
+      });
+    }
+
+    const from = String(process.env.EMAIL_FROM || "").trim();
+    if (!from) {
+      return res.status(500).json({
+        error: "EMAIL_FROM_MISSING",
+        message: "EMAIL_FROM is missing",
+      });
+    }
+
+    const pitches = await prisma.pitch.findMany({
+      where: {
+        status: "DRAFT",
+        channel: "EMAIL",
+        match: {
+          trackId,
+          track: {
+            artistId,
+          },
+        },
+      },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    let sent = 0;
+    let skippedNoRecipient = 0;
+    let failed = 0;
+
+    for (const pitch of pitches) {
+      const curator = pitch.match.playlist?.curator;
+
+      if (!canEmailCurator(curator)) {
+        skippedNoRecipient++;
+        continue;
+      }
+
+      const to = resolveRecipient(curator?.email);
+      if (!to) {
+        skippedNoRecipient++;
+        continue;
+      }
+
+      const track = pitch.match.track;
+      const spotifyUrl = track.spotifyTrackId
+        ? `https://open.spotify.com/track/${track.spotifyTrackId}`
+        : "";
+
+      const finalBody = `
+${pitch.body || ""}
+
+${spotifyUrl ? `🎧 Listen on Spotify:\n${spotifyUrl}` : ""}
+      `.trim();
+
+      try {
+        await resend.emails.send({
+          from,
+          to,
+          subject: pitch.subject || `Track suggestion: ${track.title}`,
+          text: finalBody,
+        });
+
+        await prisma.pitch.update({
+          where: { id: pitch.id },
+          data: {
+            status: "SENT",
+            sentAt: new Date(),
+            sentTo: to,
+          },
+        });
+
+        sent++;
+      } catch (error) {
+        console.error("SEND_ALL_SINGLE_EMAIL_FAILED", pitch.id, error);
+        failed++;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      sent,
+      skippedNoRecipient,
+      failed,
+      totalDraftsFound: pitches.length,
+    });
+  } catch (error: any) {
+    console.error("SEND_ALL_PITCHES_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "SEND_ALL_PITCHES_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
 export default router;

@@ -29,17 +29,29 @@ matches.get("/matches", async (req, res) => {
       return res.status(400).json({ error: "trackId query param required" });
     }
 
-    const list = await prisma.match.findMany({
-      where: { trackId },
-      include: {
-        playlist: {
-          include: {
-            curator: true,
-          },
-        },
+   const list = await prisma.match.findMany({
+  where: {
+    trackId,
+    playlist: {
+      curator: {
+        email: { not: null },
+        contactMethod: "EMAIL",
+        consent: true,
+        contactConfidence: { gte: 60 }, // 🔥 belangrijk
       },
-      orderBy: { fitScore: "desc" },
-    });
+    },
+  },
+  include: {
+    playlist: {
+      include: {
+        curator: true,
+      },
+    },
+  },
+  orderBy: { fitScore: "desc" },
+});
+
+console.log("Filtered matches:", list.length);
 
     const results = list.map((m) => {
       const curator = m.playlist?.curator;
