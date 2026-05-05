@@ -545,17 +545,28 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
     const resolvedTrackId = owned.track.id;
 
     const matches = await prisma.match.findMany({
-      where: { trackId: resolvedTrackId },
-      include: {
-        track: true,
-        playlist: {
-          include: {
-            curator: true,
-          },
-        },
+  where: {
+    trackId: resolvedTrackId,
+    playlist: {
+      curator: {
+        email: { not: null },
+        contactMethod: "EMAIL",
+        consent: true,
+        contactConfidence: { gte: 40 },
       },
-      orderBy: { fitScore: "desc" },
-    });
+    },
+  },
+  include: {
+    track: true,
+    playlist: {
+      include: {
+        curator: true,
+      },
+    },
+  },
+  orderBy: { fitScore: "desc" },
+  take: 20,
+});
 
     if (!matches.length) {
       return res.status(400).json({ error: "NO_MATCHES_FOUND" });
