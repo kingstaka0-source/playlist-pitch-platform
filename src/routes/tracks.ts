@@ -573,7 +573,6 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
     }
 
     const results: Array<{
-      let skippedCount = 0;
       matchId: string;
       pitchId?: string;
       ok: boolean;
@@ -582,6 +581,8 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
       messageId?: string | null;
       error?: string;
     }> = [];
+
+    let skippedCount = 0;
 
     for (const match of matches) {
   await new Promise((r) => setTimeout(r, 250)); // 🔥 RATE LIMIT FIX
