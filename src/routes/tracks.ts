@@ -583,7 +583,9 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
     }> = [];
 
     for (const match of matches) {
-      try {
+  await new Promise((r) => setTimeout(r, 250)); // 🔥 RATE LIMIT FIX
+
+  try {
         const curator = match.playlist?.curator;
 
         const to = resolveRecipient({
