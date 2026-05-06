@@ -708,4 +708,145 @@ const failedCount = results.filter((r) => !r.ok).length;
   }
 });
 
+/**
+ * POST /tracks/:id/send-batch
+ * Sends only a limited batch of DRAFT pitches for this track.
+ */
+tracks.post("/tracks/:id/send-batch", async (req, res) => {
+  try {
+    const trackId = String(req.params.id || "");
+    const artistId = getArtistId(req);
+
+    const limit =
+      typeof req.body?.limit === "number" && req.body.limit > 0
+        ? Math.min(req.body.limit, 20)
+        : 5;
+
+    if (!trackId) return res.status(400).json({ error: "MISSING_TRACK_ID" });
+    if (!artistId) return res.status(400).json({ error: "MISSING_ARTIST_ID" });
+
+    const paid = await requirePaidPlan(artistId);
+    if (!paid.ok) return res.status(paid.error.status).json(paid.error.body);
+
+    const owned = await requireOwnedTrack(trackId, artistId);
+    if (!owned.ok) return res.status(owned.error.status).json(owned.error.body);
+
+    const pitches = await prisma.pitch.findMany({
+      where: {
+        status: "DRAFT",
+        match: {
+          trackId: owned.track.id,
+          track: { artistId },
+          playlist: {
+            curator: {
+              email: { not: null },
+              contactMethod: "EMAIL",
+              consent: true,
+              contactConfidence: { gte: 40 },
+            },
+          },
+        },
+      },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: { include: { curator: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+      take: limit,
+    });
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    const results: any[] = [];
+
+    for (const pitch of pitches) {
+      await new Promise((r) => setTimeout(r, 300));
+
+      try {
+        const curator = pitch.match.playlist?.curator;
+
+        const to = resolveRecipient({
+          curatorEmail:
+            curator?.consent && curator?.contactMethod === "EMAIL"
+              ? curator?.email
+              : null,
+        });
+
+        if (!to) {
+          failedCount++;
+          results.push({
+            pitchId: pitch.id,
+            ok: false,
+            error: "NO_VALID_RECIPIENT",
+          });
+          continue;
+        }
+
+        const emailResult = await sendEmail({
+          to,
+          subject: pitch.subject || `Track suggestion: ${pitch.match.track.title}`,
+          html: pitch.body || "",
+          text: (pitch.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+        });
+
+        await prisma.pitch.update({
+          where: { id: pitch.id },
+          data: {
+            status: "SENT",
+            sentAt: new Date(),
+            sentTo: to,
+          },
+        });
+
+        sentCount++;
+        results.push({
+          pitchId: pitch.id,
+          ok: true,
+          to,
+          messageId: emailResult.messageId,
+        });
+      } catch (error: any) {
+        failedCount++;
+        results.push({
+          pitchId: pitch.id,
+          ok: false,
+          error: error?.message || "SEND_BATCH_FAILED",
+        });
+      }
+    }
+
+    const remainingDrafts = await prisma.pitch.count({
+      where: {
+        status: "DRAFT",
+        match: {
+          trackId: owned.track.id,
+          track: { artistId },
+        },
+      },
+    });
+
+    return res.json({
+      ok: true,
+      trackId: owned.track.id,
+      limit,
+      total: pitches.length,
+      sentCount,
+      failedCount,
+      remainingDrafts,
+      results,
+    });
+  } catch (error: any) {
+    console.error("SEND_BATCH_FAILED", error);
+    return res.status(500).json({
+      error: "SEND_BATCH_FAILED",
+      message: error?.message || "Unknown error",
+    });
+  }
+});
+
 export default tracks;
