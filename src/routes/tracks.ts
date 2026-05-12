@@ -407,17 +407,17 @@ tracks.post("/tracks/:id/send-all", async (req, res) => {
 
     const resend = req.body?.resend === true;
 
-    console.log("SEND_BATCH_DEBUG", {
+const limit =
+  typeof req.body?.limit === "number" && req.body.limit > 0
+    ? Math.min(req.body.limit, 20)
+    : 5;
+
+console.log("SEND_BATCH_DEBUG", {
   trackId: resolvedTrackId,
   artistId,
   resend,
   limit,
 });
-
-    const limit =
-  typeof req.body?.limit === "number" && req.body.limit > 0
-    ? Math.min(req.body.limit, 20)
-    : 5;
 
     const pitches = await prisma.pitch.findMany({
  where: {
