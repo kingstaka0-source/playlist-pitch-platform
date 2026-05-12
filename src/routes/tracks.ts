@@ -405,25 +405,44 @@ tracks.post("/tracks/:id/send-all", async (req, res) => {
 
     const resolvedTrackId = owned.track.id;
 
+    const resend = req.body?.resend === true;
+
+    const limit =
+  typeof req.body?.limit === "number" && req.body.limit > 0
+    ? Math.min(req.body.limit, 20)
+    : 5;
+
     const pitches = await prisma.pitch.findMany({
-      where: {
-        match: { trackId: resolvedTrackId },
-        status: "DRAFT",
+  where: {
+    status: { in: resend ? ["DRAFT", "SENT"] : ["DRAFT"] },
+    match: {
+      trackId: resolvedTrackId,
+      track: { artistId },
+      playlist: {
+        curator: {
+          email: { not: null },
+          contactMethod: "EMAIL",
+          consent: true,
+          contactConfidence: { gte: 40 },
+        },
       },
+    },
+  },
+  include: {
+    match: {
       include: {
-        match: {
+        track: true,
+        playlist: {
           include: {
-            track: true,
-            playlist: {
-              include: {
-                curator: true,
-              },
-            },
+            curator: true,
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-    });
+    },
+  },
+  orderBy: { createdAt: "desc" },
+  take: limit,
+});
 
     if (!pitches.length) {
       return res.status(400).json({ error: "NO_DRAFT_PITCHES_FOUND" });
@@ -716,6 +735,8 @@ tracks.post("/tracks/:id/send-batch", async (req, res) => {
   try {
     const trackId = String(req.params.id || "");
     const artistId = getArtistId(req);
+
+    const resend = req.body?.resend === true;
 
     const limit =
       typeof req.body?.limit === "number" && req.body.limit > 0
