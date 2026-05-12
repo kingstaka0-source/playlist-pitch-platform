@@ -413,21 +413,25 @@ tracks.post("/tracks/:id/send-all", async (req, res) => {
     : 5;
 
     const pitches = await prisma.pitch.findMany({
-  where: {
-    status: { in: resend ? ["DRAFT", "SENT"] : ["DRAFT"] },
-    match: {
-      trackId: resolvedTrackId,
-      track: { artistId },
-      playlist: {
-        curator: {
-          email: { not: null },
-          contactMethod: "EMAIL",
-          consent: true,
-          contactConfidence: { gte: 40 },
-        },
-      },
-    },
+ where: {
+  status: { in: resend ? ["SENT"] : ["DRAFT"] },
+  match: {
+    trackId: resolvedTrackId,
+    track: { artistId },
+    ...(resend
+      ? {}
+      : {
+          playlist: {
+            curator: {
+              email: { not: null },
+              contactMethod: "EMAIL",
+              consent: true,
+              contactConfidence: { gte: 40 },
+            },
+          },
+        }),
   },
+},
   include: {
     match: {
       include: {
