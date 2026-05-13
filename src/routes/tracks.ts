@@ -886,4 +886,101 @@ tracks.post("/tracks/:id/send-batch", async (req, res) => {
   }
 });
 
+/**
+ * POST /tracks/:id/check-placements
+ */
+tracks.post("/tracks/:id/check-placements", async (req, res) => {
+  try {
+    const trackId = String(req.params.id || "");
+    const artistId = getArtistId(req);
+
+    if (!trackId) {
+      return res.status(400).json({
+        error: "MISSING_TRACK_ID",
+      });
+    }
+
+    const owned = await requireOwnedTrack(trackId, artistId);
+
+    if (!owned.ok) {
+      return res.status(owned.error.status).json(owned.error.body);
+    }
+
+    const matches = await prisma.match.findMany({
+      where: {
+        trackId: owned.track.id,
+      },
+      include: {
+        playlist: true,
+      },
+      take: 50,
+    });
+
+    const appToken = await getSpotifyAppAccessToken();
+
+    const placements: any[] = [];
+    const checked: any[] = [];
+
+    for (const match of matches) {
+      try {
+        const spotifyPlaylistId = match.playlist?.spotifyPlaylistId;
+
+        if (!spotifyPlaylistId) continue;
+
+        const response = await fetch(
+          `https://api.spotify.com/v1/playlists/${spotifyPlaylistId}/tracks?limit=100`,
+          {
+            headers: {
+              Authorization: `Bearer ${appToken}`,
+            },
+          }
+        );
+
+        if (!response.ok) continue;
+
+        const data: any = await response.json();
+
+        const found = (data.items || []).some((item: any) => {
+          return (
+            item?.track?.id === owned.track.spotifyTrackId
+          );
+        });
+
+        checked.push({
+          playlist: match.playlist?.name,
+          found,
+        });
+
+        if (found) {
+          placements.push({
+            playlistId: match.playlist.id,
+            playlistName: match.playlist.name,
+          });
+        }
+
+        await new Promise((r) => setTimeout(r, 150));
+      } catch (e) {
+        console.error("PLACEMENT_CHECK_ERROR", e);
+      }
+    }
+
+    return res.json({
+      ok: true,
+      track: owned.track.title,
+      spotifyTrackId: owned.track.spotifyTrackId,
+      checkedCount: checked.length,
+      placementCount: placements.length,
+      placements,
+      checked,
+    });
+  } catch (e: any) {
+    console.error("CHECK_PLACEMENTS_FAILED", e);
+
+    return res.status(500).json({
+      error: "CHECK_PLACEMENTS_FAILED",
+      message: e?.message || "Unknown error",
+    });
+  }
+});
+
 export default tracks;
