@@ -765,10 +765,13 @@ tracks.post("/tracks/:id/send-batch", async (req, res) => {
 
     const pitches = await prisma.pitch.findMany({
       where: {
-        status: "DRAFT",
-        match: {
-          trackId: owned.track.id,
-          track: { artistId },
+  status: { in: resend ? ["DRAFT", "SENT"] : ["DRAFT"] },
+  match: {
+    trackId: owned.track.id,
+    track: { artistId },
+    ...(resend
+      ? {}
+      : {
           playlist: {
             curator: {
               email: { not: null },
@@ -777,8 +780,9 @@ tracks.post("/tracks/:id/send-batch", async (req, res) => {
               contactConfidence: { gte: 40 },
             },
           },
-        },
-      },
+        }),
+  },
+},
       include: {
         match: {
           include: {
@@ -863,15 +867,16 @@ tracks.post("/tracks/:id/send-batch", async (req, res) => {
     });
 
     return res.json({
-      ok: true,
-      trackId: owned.track.id,
-      limit,
-      total: pitches.length,
-      sentCount,
-      failedCount,
-      remainingDrafts,
-      results,
-    });
+  ok: true,
+  resend,
+  trackId: owned.track.id,
+  limit,
+  total: pitches.length,
+  sentCount,
+  failedCount,
+  remainingDrafts,
+  results,
+});
   } catch (error: any) {
     console.error("SEND_BATCH_FAILED", error);
     return res.status(500).json({
