@@ -669,7 +669,7 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
 
 if (
   blockedPatterns.some((p) =>
-    to.toLowerCase().includes(p.toLowerCase())
+    (to || "").toLowerCase().includes(p.toLowerCase())
   )
 ) {
   results.push({
