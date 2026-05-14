@@ -12,27 +12,61 @@ function buildPitchContent(input: {
   playlistName: string;
   spotifyTrackId?: string | null;
   explanation?: string | null;
+  artists?: string[];
+  genres?: string[];
 }) {
   const spotifyUrl = input.spotifyTrackId
     ? `https://open.spotify.com/track/${input.spotifyTrackId}`
     : "";
 
-  const explanationLine = input.explanation
-    ? `Reason this track fits your playlist: ${input.explanation}`
-    : "";
+  const artistLine =
+    input.artists?.length
+      ? input.artists.join(", ")
+      : "independent artist";
 
-  const subject = `Track suggestion: ${input.trackTitle}`;
+  const genreLine =
+    input.genres?.length
+      ? input.genres.slice(0, 3).join(", ")
+      : "reggae";
+
+  const explanationLine = input.explanation
+    ? `What stood out to me is how well the vibe of this track aligns with your playlist style (${input.explanation}).`
+    : `I think the energy and style could fit naturally with your audience.`;
+
+  const intros = [
+    `I came across your playlist "${input.playlistName}" and genuinely liked the direction you're taking with it.`,
+    `I was listening through "${input.playlistName}" and thought this release could blend really well there.`,
+    `Your playlist "${input.playlistName}" caught my attention because of its mix and overall vibe.`,
+  ];
+
+  const randomIntro =
+    intros[Math.floor(Math.random() * intros.length)];
+
+  const subjectOptions = [
+    `${input.trackTitle} for ${input.playlistName}`,
+    `Possible fit for ${input.playlistName}`,
+    `${artistLine} — ${input.trackTitle}`,
+  ];
+
+  const subject =
+    subjectOptions[
+      Math.floor(Math.random() * subjectOptions.length)
+    ];
 
   const body = `Hi,
 
-I came across your playlist "${input.playlistName}" and thought my track "${input.trackTitle}" could be a strong fit.
+${randomIntro}
+
+I'm reaching out to share "${input.trackTitle}" by ${artistLine}.
+
+The track leans into ${genreLine} influences and has been getting strong feedback so far.
 
 ${explanationLine}
 
 Spotify link:
 ${spotifyUrl}
 
-Thanks for your time 🙏
+Appreciate your time and consideration 🙏
 `;
 
   return { subject, body };
