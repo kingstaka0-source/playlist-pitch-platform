@@ -671,11 +671,13 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
         }
 
         const generated = buildPitchContent({
-          trackTitle: match.track.title,
-          playlistName: match.playlist.name,
-          spotifyTrackId: match.track.spotifyTrackId,
-          explanation: match.explanation,
-        });
+  trackTitle: match.track.title,
+  playlistName: match.playlist.name,
+  spotifyTrackId: match.track.spotifyTrackId,
+  explanation: match.explanation,
+  artists: match.track.artists,
+  genres: match.playlist.genres,
+});
 
         const existing = await prisma.pitch.findUnique({
           where: { matchId: match.id },
