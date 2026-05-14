@@ -665,6 +665,15 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
   "sentry.io",
   "example.com",
   "user@domain.com",
+  "@test.com",
+  "@email.com",
+  "noreply",
+  "no-reply",
+  "donotreply",
+  "fake",
+  "invalid",
+  ".local",
+  "@localhost",
 ];
 
 if (
