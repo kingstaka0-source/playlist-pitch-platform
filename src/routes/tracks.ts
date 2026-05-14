@@ -661,6 +661,26 @@ tracks.post("/tracks/:id/auto-pitch-send", async (req, res) => {
               : null,
         });
 
+        const blockedPatterns = [
+  "sentry.io",
+  "example.com",
+  "user@domain.com",
+];
+
+if (
+  blockedPatterns.some((p) =>
+    to.toLowerCase().includes(p.toLowerCase())
+  )
+) {
+  results.push({
+    matchId: match.id,
+    ok: false,
+    error: "BLOCKED_FAKE_EMAIL",
+  });
+
+  continue;
+}
+
         if (!to) {
           results.push({
             matchId: match.id,
