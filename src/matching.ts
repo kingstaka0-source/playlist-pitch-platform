@@ -482,11 +482,32 @@ const trackGenres = (track.genres || []).map((g) =>
   String(g).toLowerCase()
 );
 
-const genreOverlap = trackGenres.some((g) =>
-  playlistGenres.some((p) => p.includes(g) || g.includes(p))
+const normalizedTrackGenres = trackGenres.map((g) =>
+  g.toLowerCase()
 );
 
-if (!genreOverlap) {
+const normalizedPlaylistGenres = playlistGenres.map((g) =>
+  g.toLowerCase()
+);
+
+let genreOverlap = 0;
+
+for (const tg of normalizedTrackGenres) {
+  for (const pg of normalizedPlaylistGenres) {
+    if (tg.includes(pg) || pg.includes(tg)) {
+      genreOverlap += 1;
+      continue;
+    }
+
+    const related = GENRE_RELATIONS[tg] || [];
+
+    if (related.includes(pg)) {
+      genreOverlap += 0.7;
+    }
+  }
+}
+
+if (genreOverlap <= 0) {
   score -= 35;
 }
 
