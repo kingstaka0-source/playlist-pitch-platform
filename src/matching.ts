@@ -469,7 +469,7 @@ export async function computeMatches(trackId: string) {
   );
 
   const scored: RankedMatch[] = playlists.map((pl) => {
-    const score = computeFinalScore(track, pl, vec);
+    let score = computeFinalScore(track, pl, vec);
     const canEmail = getSendableEmailState(pl);
     const contactConfidence = Number(pl?.curator?.contactConfidence ?? 0);
     const hasSubmissionUrl = !!pl?.curator?.submissionUrl;
