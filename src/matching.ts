@@ -1,6 +1,46 @@
 import { prisma } from "./db";
 import type { TrackVector } from "./types";
 
+const GENRE_RELATIONS: Record<string, string[]> = {
+  reggae: [
+    "dub",
+    "roots",
+    "dancehall",
+    "ska",
+    "rocksteady",
+    "afrobeats",
+    "world",
+  ],
+
+  hiphop: [
+    "rap",
+    "boom bap",
+    "trap",
+    "underground hip hop",
+    "lofi",
+    "drill",
+  ],
+
+  afro: [
+    "afrobeats",
+    "amapiano",
+    "afrobeat",
+    "world",
+  ],
+
+  dancehall: [
+    "reggae",
+    "afrobeats",
+    "soca",
+  ],
+
+  dub: [
+    "reggae",
+    "roots",
+    "bass",
+  ],
+};
+
 function cosine(a: number[], b: number[]) {
   const dot = a.reduce((s, v, i) => s + v * (b[i] ?? 0), 0);
   const na = Math.hypot(...a);
