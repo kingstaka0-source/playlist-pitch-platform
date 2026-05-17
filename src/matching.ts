@@ -508,7 +508,7 @@ export async function computeMatches(trackId: string) {
     getTrackGenreProfile(track)
   );
 
-  const scored: RankedMatch[] = playlists.map((pl) => {
+  const scored = playlists.map((pl): RankedMatch | null => {
     let score = computeFinalScore(track, pl, vec);
     const canEmail = getSendableEmailState(pl);
     const contactConfidence = Number(pl?.curator?.contactConfidence ?? 0);
@@ -548,7 +548,7 @@ for (const tg of normalizedTrackGenres) {
 }
 
 if (genreOverlap <= 0) {
-  score -= 35;
+  return null;
 }
 
     const explanationParts = [
@@ -569,9 +569,10 @@ if (genreOverlap <= 0) {
   });
 
   const top = scored
-    .filter((t) => t.score >= 40)
-    .sort(compareRankedMatches)
-    .slice(0, 50);
+  .filter((t): t is RankedMatch => t !== null)
+  .filter((t) => t.score >= 40)
+  .sort(compareRankedMatches)
+  .slice(0, 50);
 
   const created = await Promise.all(
     top.map((t) =>
