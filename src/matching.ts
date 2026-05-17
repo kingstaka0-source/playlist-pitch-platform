@@ -474,6 +474,22 @@ export async function computeMatches(trackId: string) {
     const contactConfidence = Number(pl?.curator?.contactConfidence ?? 0);
     const hasSubmissionUrl = !!pl?.curator?.submissionUrl;
 
+    const playlistGenres = (pl.genres || []).map((g) =>
+  String(g).toLowerCase()
+);
+
+const trackGenres = (track.genres || []).map((g) =>
+  String(g).toLowerCase()
+);
+
+const genreOverlap = trackGenres.some((g) =>
+  playlistGenres.some((p) => p.includes(g) || g.includes(p))
+);
+
+if (!genreOverlap) {
+  score -= 35;
+}
+
     const explanationParts = [
       `Tempo ~${Math.round(vec[3] * 200)} BPM`,
       `Energy ~${vec[1].toFixed(2)}`,
