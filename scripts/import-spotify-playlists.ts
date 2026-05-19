@@ -75,6 +75,20 @@ const SEARCH_GROUPS = [
   { q: "dancehall mix", genres: ["dancehall"] },
   { q: "afro dancehall", genres: ["dancehall", "afro"] },
 
+  // SOCA / CARIBBEAN / CARNIVAL
+{ q: "soca", genres: ["soca", "caribbean"] },
+{ q: "soca playlist", genres: ["soca", "caribbean"] },
+{ q: "soca 2025", genres: ["soca", "caribbean"] },
+{ q: "soca 2026", genres: ["soca", "caribbean"] },
+{ q: "carnival soca", genres: ["soca", "carnival", "caribbean"] },
+{ q: "trinidad soca", genres: ["soca", "caribbean"] },
+{ q: "caribbean vibes", genres: ["caribbean", "soca", "dancehall"] },
+{ q: "caribbean party", genres: ["caribbean", "soca", "dancehall"] },
+{ q: "island vibes", genres: ["caribbean", "soca", "dancehall"] },
+{ q: "calypso soca", genres: ["soca", "calypso", "caribbean"] },
+{ q: "bouyon", genres: ["soca", "caribbean"] },
+{ q: "tropical party", genres: ["caribbean", "soca", "afro"] },
+
   // AFRO / AFROBEATS
   { q: "afrobeats", genres: ["afro"] },
   { q: "afrobeats playlist", genres: ["afro"] },
