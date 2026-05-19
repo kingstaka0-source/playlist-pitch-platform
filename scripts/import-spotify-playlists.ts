@@ -313,6 +313,10 @@ async function getSpotifyAccessToken(): Promise<string> {
   return json.access_token;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function searchSpotifyPlaylistsPage(
   accessToken: string,
   q: string,
@@ -339,13 +343,19 @@ async function searchSpotifyPlaylistsPage(
 
   const json: SpotifySearchResponse = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
-    throw new Error(
-      json?.error?.message ||
-        json?.message ||
-        `Spotify search failed (${res.status})`
-    );
-  }
+ if (res.status === 429) {
+  console.log("RATE LIMITED - sleeping 10 sec...");
+  await sleep(10000);
+  return [];
+}
+
+if (!res.ok) {
+  throw new Error(
+    json?.error?.message ||
+      json?.message ||
+      `Spotify search failed (${res.status})`
+  );
+}
 
   return Array.isArray(json?.playlists?.items) ? json.playlists.items : [];
 }
@@ -547,7 +557,11 @@ async function main() {
   const seenPlaylistIds = new Set<string>();
 
   for (const group of SEARCH_GROUPS) {
-    console.log(`\n=== SEARCH: ${group.q} ===`);
+  console.log("Waiting to avoid Spotify rate limit...");
+  await sleep(1200);
+
+  console.log(`=== SEARCH: ${group.q} ===`);
+}
 
     let items: SpotifyPlaylistItem[] = [];
 
