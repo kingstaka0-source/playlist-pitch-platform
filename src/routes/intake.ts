@@ -142,20 +142,38 @@ const canAutoMatch = true;
       });
     }
 
+    const inferredGenres = artists.flatMap((name: string) => {
+  const n = name.toLowerCase();
+
+  if (n.includes("kes")) return ["soca", "dancehall", "caribbean"];
+  if (n.includes("snoop") || n.includes("dr. dre") || n.includes("dr dre")) {
+    return ["hiphop", "rap", "g-funk", "west coast"];
+  }
+  if (n.includes("cocoa tea")) return ["reggae", "roots", "dancehall"];
+  if (n.includes("unstoppable force") || n.includes("king staka")) {
+    return ["reggae", "dub", "dancehall"];
+  }
+
+  return [];
+});
+
+console.log("INFERRED TRACK GENRES", {
+  title,
+  artists,
+  inferredGenres,
+});
+
     const safeFeatures = features ?? {}; // Prisma Json mag geen null in sommige schemas
 
     const track = await prisma.track.upsert({
   where: { spotifyTrackId: trackId },
-  update: { title, artists, durationMs, audioFeatures: safeFeatures },
-  create: {
-    artistId,
-    spotifyTrackId: trackId,
-    title,
-    artists,
-    durationMs,
-    audioFeatures: safeFeatures,
-    genres: [],
-  },
+  update: {
+  title,
+  artists,
+  durationMs,
+  audioFeatures: safeFeatures,
+  genres: inferredGenres,
+},
 });
 
 // 🔥 hier direct onder je prisma.track.upsert(...)
