@@ -89,6 +89,21 @@ const SEARCH_GROUPS = [
 { q: "bouyon", genres: ["soca", "caribbean"] },
 { q: "tropical party", genres: ["caribbean", "soca", "afro"] },
 
+// SURINAME / CARIBBEAN / KASEKO
+{ q: "surinam music", genres: ["surinam", "caribbean"] },
+{ q: "suriname playlist", genres: ["surinam", "caribbean"] },
+{ q: "surinaamse muziek", genres: ["surinam", "caribbean"] },
+{ q: "kaseko", genres: ["kaseko", "surinam"] },
+{ q: "kaseko playlist", genres: ["kaseko", "surinam"] },
+{ q: "kawina", genres: ["kawina", "surinam"] },
+{ q: "kawina playlist", genres: ["kawina", "surinam"] },
+{ q: "suripop", genres: ["surinam"] },
+{ q: "baithak gana", genres: ["surinam", "caribbean"] },
+{ q: "chutney music", genres: ["caribbean", "surinam"] },
+{ q: "caribbean nederland", genres: ["caribbean"] },
+{ q: "zouk caribbean", genres: ["caribbean"] },
+{ q: "dutch caribbean", genres: ["caribbean"] },
+
   // AFRO / AFROBEATS
   { q: "afrobeats", genres: ["afro"] },
   { q: "afrobeats playlist", genres: ["afro"] },

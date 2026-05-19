@@ -44,6 +44,24 @@ caribbean: [
   "afrobeats",
 ],
 
+surinam: [
+  "kaseko",
+  "kawina",
+  "caribbean",
+  "soca",
+  "dancehall",
+],
+
+kaseko: [
+  "surinam",
+  "caribbean",
+],
+
+kawina: [
+  "surinam",
+  "caribbean",
+],
+
   dancehall: [
     "reggae",
     "afrobeats",
