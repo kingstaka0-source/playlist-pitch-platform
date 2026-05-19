@@ -28,6 +28,22 @@ const GENRE_RELATIONS: Record<string, string[]> = {
     "world",
   ],
 
+  soca: [
+  "dancehall",
+  "caribbean",
+  "afrobeats",
+  "tropical",
+  "island",
+  "carnival",
+],
+
+caribbean: [
+  "soca",
+  "dancehall",
+  "reggae",
+  "afrobeats",
+],
+
   dancehall: [
     "reggae",
     "afrobeats",
@@ -542,7 +558,7 @@ for (const tg of normalizedTrackGenres) {
     const related = GENRE_RELATIONS[tg] || [];
 
     if (related.includes(pg)) {
-      genreOverlap += 0.7;
+      genreOverlap += 0.35;
     }
   }
 }
