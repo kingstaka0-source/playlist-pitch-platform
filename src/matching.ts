@@ -547,8 +547,10 @@ for (const tg of normalizedTrackGenres) {
   }
 }
 
-if (normalizedTrackGenres.length > 0 && normalizedPlaylistGenres.length > 0 && genreOverlap <= 0) {
-  return null;
+if (normalizedTrackGenres.length > 0 && normalizedPlaylistGenres.length > 0) {
+  if (genreOverlap <= 0) {
+    score -= 35;
+  }
 }
 
 if (normalizedTrackGenres.length === 0 || normalizedPlaylistGenres.length === 0) {
