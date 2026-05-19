@@ -23,6 +23,7 @@ import { requireLegal } from "./legalGate";
 import { spotifyDebug } from "./routes/spotifyDebug";
 import ai from "./routes/ai";
 import "./worker";
+import { detection } from "./routes/detection";
 
 const app = express();
 
@@ -163,6 +164,7 @@ app.use(dashboard);
 app.use(matchJobs);
 app.use(spotifyDebug);
 app.use("/ai", ai);
+app.use(detection);
 
 app.get("/admin/cleanup-edm", async (_req, res) => {
   if (process.env.NODE_ENV === "production") {
