@@ -313,9 +313,7 @@ async function getSpotifyAccessToken(): Promise<string> {
   return json.access_token;
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+
 
 async function searchSpotifyPlaylistsPage(
   accessToken: string,
@@ -556,22 +554,33 @@ async function main() {
 
   const seenPlaylistIds = new Set<string>();
 
-  for (const group of SEARCH_GROUPS) {
+  const filter = String(process.argv[2] || "").toLowerCase();
+
+const groupsToRun = filter
+  ? SEARCH_GROUPS.filter((g) =>
+      g.q.toLowerCase().includes(filter) ||
+      g.genres.some((genre) => genre.toLowerCase().includes(filter))
+    )
+  : SEARCH_GROUPS;
+
+  for (const group of groupsToRun) {
   console.log("Waiting to avoid Spotify rate limit...");
   await sleep(1200);
 
   console.log(`=== SEARCH: ${group.q} ===`);
-}
 
-    let items: SpotifyPlaylistItem[] = [];
+  let items: SpotifyPlaylistItem[] = [];
 
-    try {
-      items = await searchSpotifyPlaylistsAllPages(accessToken, group.q);
-    } catch (error) {
-      failed += 1;
-      console.error(`SEARCH FAILED for "${group.q}":`, error);
-      continue;
-    }
+  try {
+    items = await searchSpotifyPlaylistsAllPages(
+      accessToken,
+      group.q
+    );
+  } catch (error) {
+    failed += 1;
+    console.error(`SEARCH FAILED for "${group.q}":`, error);
+    continue;
+  }
 
     for (const item of items) {
       try {
