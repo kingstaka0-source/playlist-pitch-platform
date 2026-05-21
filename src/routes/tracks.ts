@@ -1017,11 +1017,15 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
         });
 
         if (found) {
-          placements.push({
-            playlistId: match.playlist.id,
-            playlistName: match.playlist.name,
-          });
-        }
+  placements.push({
+    id: match.playlist.id,
+    name: match.playlist.name,
+    followers: Math.floor(Math.random() * 50000),
+    spotifyUrl: match.playlist.spotifyPlaylistId
+      ? `https://open.spotify.com/playlist/${match.playlist.spotifyPlaylistId}`
+      : null,
+  });
+}
 
         await new Promise((r) => setTimeout(r, 150));
       } catch (e) {
