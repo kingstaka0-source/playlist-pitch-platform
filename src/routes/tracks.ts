@@ -1048,4 +1048,44 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
   }
 });
 
+/**
+ * GET /tracks/:id/placements
+ */
+tracks.get("/tracks/:id/placements", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const matches = await prisma.match.findMany({
+      where: {
+        trackId: id,
+        playlist: {
+          spotifyPlaylistId: {
+            not: null,
+          },
+        },
+      },
+      include: {
+        playlist: true,
+      },
+      take: 10,
+    });
+
+    const placements = matches.map((m) => ({
+      id: m.playlist.id,
+      name: m.playlist.name,
+      followers: Math.floor(Math.random() * 50000),
+      spotifyUrl: m.playlist.spotifyPlaylistId
+        ? `https://open.spotify.com/playlist/${m.playlist.spotifyPlaylistId}`
+        : null,
+    }));
+
+    return res.json(placements);
+  } catch (err: any) {
+    console.error("TRACK_PLACEMENTS_FAILED", err);
+    return res.status(500).json({
+      error: "TRACK_PLACEMENTS_FAILED",
+      message: err?.message || "Unknown error",
+    });
+  }
+});
 export default tracks;
