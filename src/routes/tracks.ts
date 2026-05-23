@@ -1092,4 +1092,49 @@ tracks.get("/tracks/:id/placements", async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /tracks/:id/reset-campaign
+ */
+tracks.post("/tracks/:id/reset-campaign", async (req, res) => {
+  try {
+    const trackId = String(req.params.id || "");
+    const artistId = getArtistId(req);
+
+    if (!trackId) return res.status(400).json({ error: "MISSING_TRACK_ID" });
+    if (!artistId) return res.status(400).json({ error: "MISSING_ARTIST_ID" });
+
+    const owned = await requireOwnedTrack(trackId, artistId);
+    if (!owned.ok) {
+      return res.status(owned.error.status).json(owned.error.body);
+    }
+
+    const result = await prisma.pitch.updateMany({
+      where: {
+        match: {
+          trackId: owned.track.id,
+          track: { artistId },
+        },
+      },
+      data: {
+        status: "DRAFT",
+        sentAt: null,
+        sentTo: null,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      trackId: owned.track.id,
+      resetCount: result.count,
+    });
+  } catch (error: any) {
+    console.error("RESET_CAMPAIGN_FAILED", error);
+    return res.status(500).json({
+      error: "RESET_CAMPAIGN_FAILED",
+      message: error?.message || "Unknown error",
+    });
+  }
+});
+
 export default tracks;
