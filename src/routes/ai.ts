@@ -90,18 +90,52 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     // ======================
     try {
       const prompt = buildPitchPrompt({
-        artistName,
-        trackTitle,
-        trackArtists,
-        trackGenre: (match.track as any)?.genre || null,
-        trackMood: (match.track as any)?.mood || null,
-        trackDescription: (match.track as any)?.description || null,
-        curatorName,
-        playlistName,
-        playlistDescription: (match.playlist as any)?.description || null,
-        playlistGenres,
-        channel,
-      });
+  artistName,
+  trackTitle,
+  trackArtists,
+
+  trackGenre:
+    (match.track as any)?.genre ||
+    playlistGenres?.[0] ||
+    null,
+
+  trackMood:
+    (match.track as any)?.mood ||
+    "emotional, energetic, authentic",
+
+  trackDescription:
+    (match.track as any)?.description ||
+    `A professional release by ${artistName}.`,
+
+  curatorName,
+
+  playlistName,
+
+  playlistDescription:
+    (match.playlist as any)?.description ||
+    `Spotify playlist focused on ${playlistGenres.join(", ")}`,
+
+  playlistGenres,
+
+  channel,
+
+  fitScore: match.fitScore || 0,
+
+  playlistFollowers:
+    (match.playlist as any)?.followers || 0,
+
+  explanation:
+    match.explanation || "",
+
+  artistComparison:
+    playlistGenres.includes("reggae")
+      ? "Protoje, Kabaka Pyramid, Chronixx"
+      : playlistGenres.includes("dancehall")
+      ? "Popcaan, Skillibeng, Masicka"
+      : playlistGenres.includes("hip hop")
+      ? "J. Cole, Joey Bada$$, Kendrick Lamar"
+      : "similar independent artists",
+});
 
       const aiRaw = await generateTextFromAi(prompt);
       const parsed = parseAiPitch(aiRaw);

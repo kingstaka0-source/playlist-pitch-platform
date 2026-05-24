@@ -561,16 +561,22 @@ console.log("SEND_BATCH_DEBUG", {
     }
 
     const sentCount = results.filter((r) => r.ok).length;
-    const failedCount = results.filter((r) => !r.ok).length;
 
-    return res.json({
-      ok: true,
-      trackId: resolvedTrackId,
-      total: results.length,
-      sentCount,
-      failedCount,
-      results,
-    });
+const failedCount = results.filter((r) => !r.ok).length;
+
+const noRecipientCount = results.filter(
+  (r) => r.error === "NO_VALID_RECIPIENT"
+).length;
+
+return res.json({
+  ok: true,
+  trackId: resolvedTrackId,
+  total: results.length,
+  sentCount,
+  failedCount,
+  noRecipientCount,
+  results,
+});
   } catch (e: any) {
     console.error("TRACK_SEND_ALL_FAILED", e);
     return res.status(500).json({
