@@ -119,22 +119,6 @@ router.post("/generate-and-save-pitch", async (req, res) => {
 
   channel,
 
-  fitScore: match.fitScore || 0,
-
-  playlistFollowers:
-    (match.playlist as any)?.followers || 0,
-
-  explanation:
-    match.explanation || "",
-
-  artistComparison:
-    playlistGenres.includes("reggae")
-      ? "Protoje, Kabaka Pyramid, Chronixx"
-      : playlistGenres.includes("dancehall")
-      ? "Popcaan, Skillibeng, Masicka"
-      : playlistGenres.includes("hip hop")
-      ? "J. Cole, Joey Bada$$, Kendrick Lamar"
-      : "similar independent artists",
 });
 
       const aiRaw = await generateTextFromAi(prompt);
