@@ -29,6 +29,8 @@ matches.get("/matches", async (req, res) => {
       return res.status(400).json({ error: "trackId query param required" });
     }
 
+    
+
    const list = await prisma.match.findMany({
   where: {
     trackId,
@@ -37,7 +39,6 @@ matches.get("/matches", async (req, res) => {
         email: { not: null },
         contactMethod: "EMAIL",
         consent: true,
-        contactConfidence: { gte: 60 }, // 🔥 belangrijk
       },
     },
   },
@@ -51,7 +52,7 @@ matches.get("/matches", async (req, res) => {
   orderBy: { fitScore: "desc" },
 });
 
-console.log("Filtered matches:", list.length);
+
 
     const results = list.map((m) => {
       const curator = m.playlist?.curator;
@@ -83,6 +84,7 @@ console.log("Filtered matches:", list.length);
                     contactMethod: curator.contactMethod,
                     consent: curator.consent,
                     languages: curator.languages,
+                    contactConfidence: curator.contactConfidence,
                     canEmail,
                   }
                 : null,

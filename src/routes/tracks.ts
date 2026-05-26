@@ -568,6 +568,18 @@ const noRecipientCount = results.filter(
   (r) => r.error === "NO_VALID_RECIPIENT"
 ).length;
 
+await prisma.campaignHistory.create({
+  data: {
+    trackId: resolvedTrackId,
+    matchesCount: results.length,
+    placementsCount: 0,
+    successRate:
+      results.length > 0
+        ? Math.round((sentCount / results.length) * 100)
+        : 0,
+  },
+});
+
 return res.json({
   ok: true,
   trackId: resolvedTrackId,
