@@ -339,8 +339,122 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * GET SINGLE PITCH
+ */
+router.get("/:id", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+    const pitchId = String(req.params.id || "").trim();
+
+    if (!artistId || !pitchId) {
+      return res.status(400).json({
+        error: "MISSING_DATA",
+        message: "artistId and pitch id are required",
+      });
+    }
+
+    const pitch = await prisma.pitch.findUnique({
+      where: { id: pitchId },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pitch) {
+      return res.status(404).json({ error: "PITCH_NOT_FOUND" });
+    }
+
+    if (pitch.match.track.artistId !== artistId) {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: "This pitch does not belong to the current artist.",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      pitch: {
+        ...pitch,
+        track: pitch.match.track,
+        playlist: pitch.match.playlist,
+      },
+    });
+  } catch (error: any) {
+    console.error("GET_PITCH_DETAIL_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "GET_PITCH_DETAIL_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
+/**
  * SEND SINGLE PITCH EMAIL
  */
+router.post("/:id/email", async (req, res) => {
+  try {
+    const artistId = getArtistId(req);
+    const pitchId = String(req.params.id || "").trim();
+
+    if (!artistId || !pitchId) {
+      return res.status(400).json({
+        error: "MISSING_DATA",
+        message: "artistId and pitch id are required",
+      });
+    }
+
+    const pitch = await prisma.pitch.findUnique({
+      where: { id: pitchId },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pitch) {
+      return res.status(404).json({ error: "PITCH_NOT_FOUND" });
+    }
+
+    if (pitch.match.track.artistId !== artistId) {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: "This pitch does not belong to the current artist.",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      pitch: {
+        ...pitch,
+        track: pitch.match.track,
+        playlist: pitch.match.playlist,
+      },
+    });
+  } catch (error: any) {
+    console.error("GET_PITCH_DETAIL_ERROR", error?.message ?? error);
+    return res.status(500).json({
+      error: "GET_PITCH_DETAIL_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
 router.post("/:id/email", async (req, res) => {
   try {
     const artistId = getArtistId(req);

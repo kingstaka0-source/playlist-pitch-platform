@@ -49,12 +49,41 @@ matches.get("/matches", async (req, res) => {
       },
     },
   },
-  orderBy: { fitScore: "desc" },
+  
 });
 
+const ranked = list
+  .map((m) => {
+    const confidence =
+      m.playlist?.curator?.contactConfidence || 0;
 
+    const followers =
+      (m.playlist as any)?.followers || 0;
 
-    const results = list.map((m) => {
+    const followerScore =
+      followers >= 100000
+        ? 40
+        : followers >= 50000
+        ? 30
+        : followers >= 10000
+        ? 20
+        : followers >= 1000
+        ? 10
+        : 0;
+
+    const smartScore =
+      (m.fitScore || 0) +
+      confidence +
+      followerScore;
+
+    return {
+      ...m,
+      smartScore,
+    };
+  })
+  .sort((a, b) => b.smartScore - a.smartScore);
+
+    const results = ranked.map((m) => {
       const curator = m.playlist?.curator;
 
       const canEmail =

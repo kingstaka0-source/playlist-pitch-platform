@@ -19,54 +19,39 @@ function buildPitchContent(input: {
     ? `https://open.spotify.com/track/${input.spotifyTrackId}`
     : "";
 
-  const artistLine =
-    input.artists?.length
-      ? input.artists.join(", ")
-      : "independent artist";
+  const artistLine = input.artists?.length
+    ? input.artists.join(", ")
+    : "an independent artist";
 
-  const genreLine =
-    input.genres?.length
-      ? input.genres.slice(0, 3).join(", ")
-      : "reggae";
+  const genreLine = input.genres?.length
+    ? input.genres.slice(0, 4).join(", ")
+    : "reggae, dancehall and Caribbean";
 
-  const explanationLine = input.explanation
-    ? `What stood out to me is how well the vibe of this track aligns with your playlist style (${input.explanation}).`
-    : `I think the energy and style could fit naturally with your audience.`;
+  const cleanExplanation = input.explanation
+    ?.replace(/\s+/g, " ")
+    .trim();
 
-  const intros = [
-    `I came across your playlist "${input.playlistName}" and genuinely liked the direction you're taking with it.`,
-    `I was listening through "${input.playlistName}" and thought this release could blend really well there.`,
-    `Your playlist "${input.playlistName}" caught my attention because of its mix and overall vibe.`,
-  ];
-
-  const randomIntro =
-    intros[Math.floor(Math.random() * intros.length)];
-
-  const subjectOptions = [
-    `${input.trackTitle} for ${input.playlistName}`,
-    `Possible fit for ${input.playlistName}`,
-    `${artistLine} — ${input.trackTitle}`,
-  ];
-
-  const subject =
-    subjectOptions[
-      Math.floor(Math.random() * subjectOptions.length)
-    ];
+  const subject = `Possible fit for ${input.playlistName}: ${input.trackTitle}`;
 
   const body = `Hi,
 
-${randomIntro}
+I came across "${input.playlistName}" and thought "${input.trackTitle}" by ${artistLine} could be a strong fit.
 
-I'm reaching out to share "${input.trackTitle}" by ${artistLine}.
+The track carries ${genreLine} influences, with an energy that feels relevant for your playlist audience.
 
-The track leans into ${genreLine} influences and has been getting strong feedback so far.
-
-${explanationLine}
+${
+  cleanExplanation
+    ? `The match stood out because: ${cleanExplanation}`
+    : `It feels like the track could sit naturally alongside the sound and mood of your playlist.`
+}
 
 Spotify link:
 ${spotifyUrl}
 
-Appreciate your time and consideration 🙏
+If it fits your direction, I’d be grateful if you considered it for the playlist.
+
+Thanks for listening,
+${artistLine}
 `;
 
   return { subject, body };
@@ -562,26 +547,26 @@ console.log("SEND_BATCH_DEBUG", {
 
     const sentCount = results.filter((r) => r.ok).length;
 
-const failedCount = results.filter((r) => !r.ok).length;
+  const failedCount = results.filter((r) => !r.ok).length;
 
-const noRecipientCount = results.filter(
-  (r) => r.error === "NO_VALID_RECIPIENT"
-).length;
+  const noRecipientCount = results.filter(
+    (r) => r.error === "NO_VALID_RECIPIENT"
+  ).length;
 
-await prisma.campaignHistory.create({
-  data: {
-    trackId: resolvedTrackId,
-    matchesCount: results.length,
-    placementsCount: 0,
-    successRate:
-      results.length > 0
-        ? Math.round((sentCount / results.length) * 100)
-        : 0,
-  },
-});
+  await prisma.campaignHistory.create({
+    data: {
+      trackId: resolvedTrackId,
+      matchesCount: results.length,
+      placementsCount: 0,
+      successRate:
+        results.length > 0
+          ? Math.round((sentCount / results.length) * 100)
+          : 0,
+    },
+  });
 
-return res.json({
-  ok: true,
+  return res.json({
+    ok: true,
   trackId: resolvedTrackId,
   total: results.length,
   sentCount,
@@ -802,6 +787,18 @@ if (
 
     const sentCount = results.filter((r) => r.ok && !r.action?.startsWith("SKIPPED")).length;
 const failedCount = results.filter((r) => !r.ok).length;
+
+await prisma.campaignHistory.create({
+  data: {
+    trackId: resolvedTrackId,
+    matchesCount: results.length,
+    placementsCount: 0,
+    successRate:
+      results.length > 0
+        ? Math.round((sentCount / results.length) * 100)
+        : 0,
+  },
+});
 
     return res.json({
   ok: true,
@@ -1151,6 +1148,33 @@ tracks.post("/tracks/:id/reset-campaign", async (req, res) => {
     return res.status(500).json({
       error: "RESET_CAMPAIGN_FAILED",
       message: error?.message || "Unknown error",
+    });
+  }
+});
+
+tracks.get("/tracks/:trackId/campaign-history", async (req, res) => {
+  try {
+    const { trackId } = req.params;
+
+    const history = await prisma.campaignHistory.findMany({
+      where: {
+        trackId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 10,
+    });
+
+    return res.json({
+      ok: true,
+      history,
+    });
+  } catch (err: any) {
+    console.error("CAMPAIGN HISTORY ERROR", err?.message ?? err);
+
+    return res.status(500).json({
+      error: "Failed to load campaign history",
     });
   }
 });
