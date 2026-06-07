@@ -25,10 +25,16 @@ function buildPitchContent(input: {
 
   const genreLine = input.genres?.length
     ? input.genres.slice(0, 4).join(", ")
-    : "reggae, dancehall and Caribbean";
+    : "reggae, Caribbean and independent music";
 
   const cleanExplanation = input.explanation
-    ?.replace(/\s+/g, " ")
+    ?.replace(/Tempo ~[^•]+•?/gi, "")
+    .replace(/Energy ~[^•]+•?/gi, "")
+    .replace(/Email contact/gi, "")
+    .replace(/Confidence \d+/gi, "")
+    .replace(/Genre profile limited/gi, "")
+    .replace(/\s*•\s*/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   const subject = `Possible fit for ${input.playlistName}: ${input.trackTitle}`;
@@ -37,12 +43,12 @@ function buildPitchContent(input: {
 
 I came across "${input.playlistName}" and thought "${input.trackTitle}" by ${artistLine} could be a strong fit.
 
-The track carries ${genreLine} influences, with an energy that feels relevant for your playlist audience.
+The track carries ${genreLine} influences, with a warm and organic feel that could connect well with listeners who enjoy carefully curated independent music.
 
 ${
   cleanExplanation
-    ? `The match stood out because: ${cleanExplanation}`
-    : `It feels like the track could sit naturally alongside the sound and mood of your playlist.`
+    ? `What stood out was the natural connection with your playlist: ${cleanExplanation}.`
+    : `It feels like the track could sit naturally alongside the mood and direction of your playlist.`
 }
 
 Spotify link:

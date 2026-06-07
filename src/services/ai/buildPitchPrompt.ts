@@ -35,27 +35,13 @@ export function buildPitchPrompt(input: PitchInput) {
       ? playlistGenres.join(", ")
       : "unknown";
 
-  return `
-You are an expert music marketing assistant.
+    return `
+You are an expert Spotify playlist pitching assistant for independent artists.
 
 Your task:
 Write a short, personalized Spotify playlist pitch for a curator.
 
-Rules:
-- Keep it natural, professional, and human
-- Do NOT sound spammy
-- Do NOT overhype
-- Make it concise
-- Mention why the track fits THIS specific playlist
-- Use the playlist name naturally
-- If curator name exists, use it once naturally
-- Use playlist description and genres when useful
-- Never invent fake achievements
-- Do not mention streams, awards, or press unless provided
-- Do not use placeholders like [Your Name], [Artist Name], or [Link]
-- Do not add a signature
-- End naturally without placeholder text
-- Output JSON only:
+Return JSON only:
 {
   "subject": "...",
   "body": "..."
@@ -64,9 +50,9 @@ Rules:
 Pitch channel: ${channel}
 
 Track info:
-- Artist name: ${artistName}
+- Main artist/account: ${artistName}
 - Track title: ${trackTitle}
-- Track artists: ${joinedArtists}
+- Credited artists: ${joinedArtists}
 - Track genre: ${trackGenre || "unknown"}
 - Track mood: ${trackMood || "unknown"}
 - Track description: ${trackDescription || "none"}
@@ -77,28 +63,31 @@ Playlist info:
 - Playlist description: ${playlistDescription || "none"}
 - Playlist genres: ${genresText}
 
-Writing style:
-- 80 to 140 words for EMAIL
-- 50 to 100 words for INAPP
-- Friendly, confident, respectful
-- Focus on fit between track and playlist
-- 1 short intro
-- 1 fit sentence
-- 1 polite closing
-- No emojis
-- No hashtags
-- No bullet points
+Rules:
+- Natural, human, professional English.
+- Short: 80 to 130 words for EMAIL, 50 to 90 words for INAPP.
+- Do NOT mention tempo, BPM, energy, confidence score, fit score, algorithm, match score, database, or internal matching data.
+- Do NOT say "strong feedback so far" unless provided in Track description.
+- Do NOT claim the song is by ${artistName} if the credited artists are different. Use credited artists when needed.
+- Do NOT invent streams, press, playlist adds, awards, or achievements.
+- Do NOT use emojis, hashtags, bullet points, or placeholders.
+- Do NOT add a fake signature.
+- Mention why the track could fit this playlist using musical language, mood, sound, audience, or playlist direction.
+- Use the curator name once if it sounds natural.
+- Use the playlist description only if useful.
+- Keep it respectful and not pushy.
+- If the credited artists are different from the main artist/account, describe the track as being by the credited artists, not by the main artist/account.
 
-IMPORTANT:
-- Keep the pitch SHORT (max 4–5 lines)
+
+Subject:
+Make the subject specific and simple, for example:
+"Possible fit for ${playlistName}: ${trackTitle}"
+
+Body style:
+- 1 short opening sentence
+- 1 sentence about the track and credited artists
+- 1 sentence about why it fits the playlist
+- 1 polite closing sentence
 - No long paragraphs
-- No generic phrases like "I hope this message finds you well"
-- Make it sound natural and human
-- Focus on fit, vibe and why it belongs in the playlist
-
-STYLE:
-- Casual but respectful
-- No corporate language
-- No fluff
-`;
+`.trim();
 }
