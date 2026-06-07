@@ -210,17 +210,67 @@ dashboard.get("/dashboard/artist/:artistId/overview", async (req, res) => {
       })
     );
 
-    return res.json({
-      ok: true,
-      artist,
-      legal: {
-        accepted,
-        required,
-        missing,
-        allAccepted: missing.length === 0,
+    const [
+  totalCampaigns,
+  totalSentPitches,
+  totalPlacements,
+] = await Promise.all([
+  prisma.campaignHistory.count({
+  where: {
+    trackId: {
+      in: tracks.map((t) => t.id),
+    },
+  },
+}),
+
+  prisma.pitch.count({
+    where: {
+      status: "SENT" as any,
+      match: {
+        track: {
+          artistId,
+        },
       },
-      tracks: tracksWithMatches,
-    });
+    },
+  }),
+
+  prisma.pitch.count({
+    where: {
+      playlistDetected: true,
+      match: {
+        track: {
+          artistId,
+        },
+      },
+    },
+  }),
+]);
+
+const placementRate =
+  totalSentPitches > 0
+    ? Math.round((totalPlacements / totalSentPitches) * 100)
+    : 0;
+
+    return res.json({
+  ok: true,
+  artist,
+
+  analytics: {
+    totalCampaigns,
+    totalSentPitches,
+    totalPlacements,
+    placementRate,
+  },
+
+  legal: {
+    accepted,
+    required,
+    missing,
+    allAccepted: missing.length === 0,
+  },
+
+  tracks: tracksWithMatches,
+});
   } catch (err: any) {
     console.error("DASHBOARD OVERVIEW ERROR", err?.message ?? err);
     return res.status(500).json({
