@@ -981,23 +981,32 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
     const artistId = getArtistId(req);
 
     if (!trackId) {
-      return res.status(400).json({
-        error: "MISSING_TRACK_ID",
-      });
+      return res.status(400).json({ error: "MISSING_TRACK_ID" });
+    }
+
+    if (!artistId) {
+      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
     }
 
     const owned = await requireOwnedTrack(trackId, artistId);
-
     if (!owned.ok) {
       return res.status(owned.error.status).json(owned.error.body);
     }
 
     const matches = await prisma.match.findMany({
       where: {
-        trackId: owned.track.id,
+        trackId,
+        playlist: {
+          spotifyPlaylistId: {
+            not: null,
+          },
+        },
       },
       include: {
         playlist: true,
+      },
+      orderBy: {
+        fitScore: "desc",
       },
       take: 50,
     });
@@ -1010,7 +1019,6 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
     for (const match of matches) {
       try {
         const spotifyPlaylistId = match.playlist?.spotifyPlaylistId;
-
         if (!spotifyPlaylistId) continue;
 
         const response = await fetch(
@@ -1022,14 +1030,20 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
           }
         );
 
-        if (!response.ok) continue;
+        if (!response.ok) {
+  checked.push({
+    playlist: match.playlist?.name,
+    found: false,
+    status: response.status,
+  });
+
+  continue;
+}
 
         const data: any = await response.json();
 
         const found = (data.items || []).some((item: any) => {
-          return (
-            item?.track?.id === owned.track.spotifyTrackId
-          );
+          return item?.track?.id === owned.track.spotifyTrackId;
         });
 
         checked.push({
@@ -1038,15 +1052,25 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
         });
 
         if (found) {
-  placements.push({
-    id: match.playlist.id,
-    name: match.playlist.name,
-    followers: Math.floor(Math.random() * 50000),
-    spotifyUrl: match.playlist.spotifyPlaylistId
-      ? `https://open.spotify.com/playlist/${match.playlist.spotifyPlaylistId}`
-      : null,
-  });
-}
+          placements.push({
+            id: match.playlist.id,
+            name: match.playlist.name,
+            followers: Math.floor(Math.random() * 50000),
+            spotifyUrl: match.playlist.spotifyPlaylistId
+              ? `https://open.spotify.com/playlist/${match.playlist.spotifyPlaylistId}`
+              : null,
+          });
+
+          await prisma.pitch.updateMany({
+            where: {
+              matchId: match.id,
+            },
+            data: {
+              playlistDetected: true,
+              playlistedAt: new Date(),
+            },
+          });
+        }
 
         await new Promise((r) => setTimeout(r, 150));
       } catch (e) {
@@ -1081,19 +1105,22 @@ tracks.get("/tracks/:id/placements", async (req, res) => {
     const { id } = req.params;
 
     const matches = await prisma.match.findMany({
-      where: {
-        trackId: id,
-        playlist: {
-          spotifyPlaylistId: {
-            not: null,
-          },
-        },
+  where: {
+    trackId: id,
+    playlist: {
+      spotifyPlaylistId: {
+        not: null,
       },
-      include: {
-        playlist: true,
-      },
-      take: 10,
-    });
+    },
+  },
+  include: {
+    playlist: true,
+  },
+  orderBy: {
+    fitScore: "desc",
+  },
+  take: 50,
+});
 
     const placements = matches.map((m) => ({
       id: m.playlist.id,
