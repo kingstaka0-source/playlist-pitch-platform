@@ -437,12 +437,7 @@ const limit =
     ? Math.min(req.body.limit, 20)
     : 5;
 
-console.log("SEND_BATCH_DEBUG", {
-  trackId: resolvedTrackId,
-  artistId,
-  resend,
-  limit,
-});
+
 
     const pitches = await prisma.pitch.findMany({
  where: {
@@ -1032,10 +1027,9 @@ tracks.post("/tracks/:id/check-placements", async (req, res) => {
 
         if (!response.ok) {
   checked.push({
-    playlist: match.playlist?.name,
-    found: false,
-    status: response.status,
-  });
+  playlist: match.playlist?.name,
+  found: false,
+});
 
   continue;
 }
