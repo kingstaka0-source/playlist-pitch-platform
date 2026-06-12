@@ -65,6 +65,15 @@ Playlist info:
 
 Rules:
 - Natural, human, professional English.
+- Study the playlist name carefully and infer the likely audience and style.
+- Mention something specific about the playlist direction when possible.
+- Avoid generic genre descriptions.
+- Explain WHY the song belongs in this playlist.
+- Focus on listener experience, mood, atmosphere and audience fit.
+- Write as if a real artist personally selected this playlist.
+- Sound like someone who actually listened to the playlist.
+- Reference the playlist by name naturally.
+- Prefer playlist context over genre labels.
 - Short: 80 to 130 words for EMAIL, 50 to 90 words for INAPP.
 - Do NOT mention tempo, BPM, energy, confidence score, fit score, algorithm, match score, database, or internal matching data.
 - Do NOT say "strong feedback so far" unless provided in Track description.
@@ -77,17 +86,34 @@ Rules:
 - Use the playlist description only if useful.
 - Keep it respectful and not pushy.
 - If the credited artists are different from the main artist/account, describe the track as being by the credited artists, not by the main artist/account.
-
+- Do NOT use phrases like "captivated", "beautifully blends", "resonate", "heartfelt melodies", "perfect for", or "journey".
+- Avoid dramatic or poetic language.
+- Use simple curator-style language.
+- Make it sound like a short real email, not marketing copy.
+- Do not say "I believe".
+- Never start with "Hi there, I hope you're well".
+- Never start with "I hope this message finds you well".
+- Avoid phrases like "would fit nicely".
+- Avoid phrases like "emotional yet energetic vibe".
+- Prefer observations about the playlist over describing genres.
+- Write like an independent artist contacting a curator personally.
+- Keep the tone conversational and specific.
 
 Subject:
 Make the subject specific and simple, for example:
 "Possible fit for ${playlistName}: ${trackTitle}"
 
 Body style:
-- 1 short opening sentence
-- 1 sentence about the track and credited artists
-- 1 sentence about why it fits the playlist
+- 1 short opening sentence referencing the playlist
+- 1 sentence describing the track naturally
+- 1 sentence explaining why listeners of this playlist may enjoy it
 - 1 polite closing sentence
 - No long paragraphs
+- Sound personal and hand-written
+- Avoid generic marketing language
+- Avoid repeating genre labels
+- Plain English
+- No poetic descriptions
+- No emotional over-selling
 `.trim();
 }
