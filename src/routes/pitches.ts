@@ -397,64 +397,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-/**
- * SEND SINGLE PITCH EMAIL
- */
-router.post("/:id/email", async (req, res) => {
-  try {
-    const artistId = getArtistId(req);
-    const pitchId = String(req.params.id || "").trim();
-
-    if (!artistId || !pitchId) {
-      return res.status(400).json({
-        error: "MISSING_DATA",
-        message: "artistId and pitch id are required",
-      });
-    }
-
-    const pitch = await prisma.pitch.findUnique({
-      where: { id: pitchId },
-      include: {
-        match: {
-          include: {
-            track: true,
-            playlist: {
-              include: {
-                curator: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!pitch) {
-      return res.status(404).json({ error: "PITCH_NOT_FOUND" });
-    }
-
-    if (pitch.match.track.artistId !== artistId) {
-      return res.status(403).json({
-        error: "FORBIDDEN",
-        message: "This pitch does not belong to the current artist.",
-      });
-    }
-
-    return res.json({
-      ok: true,
-      pitch: {
-        ...pitch,
-        track: pitch.match.track,
-        playlist: pitch.match.playlist,
-      },
-    });
-  } catch (error: any) {
-    console.error("GET_PITCH_DETAIL_ERROR", error?.message ?? error);
-    return res.status(500).json({
-      error: "GET_PITCH_DETAIL_FAILED",
-      message: error?.message ?? String(error),
-    });
-  }
-});
 router.post("/:id/email", async (req, res) => {
   try {
     const artistId = getArtistId(req);
@@ -551,11 +493,26 @@ const spotifyUrl = track.spotifyTrackId
   ? `https://open.spotify.com/track/${track.spotifyTrackId}`
   : "";
 
+const apiBaseUrl =
+  "https://playlist-pitch-platform.onrender.com";
+
+const openPixelUrl =
+  `${apiBaseUrl}/pitches/${pitch.id}/open`;
+
+const trackedSpotifyUrl = spotifyUrl
+  ? `${apiBaseUrl}/pitches/${pitch.id}/click?url=${encodeURIComponent(
+      spotifyUrl
+    )}`
+  : "";
+
 const finalBody = `
 ${pitch.body || ""}
 
-${spotifyUrl ? `🎧 Listen on Spotify:\n${spotifyUrl}` : ""}
-`;
+${trackedSpotifyUrl ? `🎧 Listen on Spotify:\n${trackedSpotifyUrl}` : ""}
+
+Tracking:
+${openPixelUrl}
+`.trim();
 
 await resend.emails.send({
   from,
@@ -796,14 +753,29 @@ router.post("/send-all", async (req, res) => {
 
       const track = pitch.match.track;
       const spotifyUrl = track.spotifyTrackId
-        ? `https://open.spotify.com/track/${track.spotifyTrackId}`
-        : "";
+  ? `https://open.spotify.com/track/${track.spotifyTrackId}`
+  : "";
 
-      const finalBody = `
+const apiBaseUrl =
+  "https://playlist-pitch-platform.onrender.com";
+
+const openPixelUrl =
+  `${apiBaseUrl}/pitches/${pitch.id}/open`;
+
+const trackedSpotifyUrl = spotifyUrl
+  ? `${apiBaseUrl}/pitches/${pitch.id}/click?url=${encodeURIComponent(
+      spotifyUrl
+    )}`
+  : "";
+
+const finalBody = `
 ${pitch.body || ""}
 
-${spotifyUrl ? `🎧 Listen on Spotify:\n${spotifyUrl}` : ""}
-      `.trim();
+${trackedSpotifyUrl ? `🎧 Listen on Spotify:\n${trackedSpotifyUrl}` : ""}
+
+Tracking:
+${openPixelUrl}
+`.trim();
 
       try {
         await resend.emails.send({
@@ -840,6 +812,83 @@ ${spotifyUrl ? `🎧 Listen on Spotify:\n${spotifyUrl}` : ""}
     console.error("SEND_ALL_PITCHES_ERROR", error?.message ?? error);
     return res.status(500).json({
       error: "SEND_ALL_PITCHES_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
+router.get("/:id/open", async (req, res) => {
+  try {
+    const pitchId = String(req.params.id || "").trim();
+
+    if (pitchId) {
+      await prisma.pitch.update({
+        where: { id: pitchId },
+        data: {
+          openCount: { increment: 1 },
+          lastOpenedAt: new Date(),
+        },
+      });
+    }
+
+    const pixel = Buffer.from(
+      "R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==",
+      "base64"
+    );
+
+    res.setHeader("Content-Type", "image/gif");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    return res.end(pixel);
+  } catch {
+    return res.status(204).end();
+  }
+});
+
+router.get("/:id/click", async (req, res) => {
+  try {
+    const pitchId = String(req.params.id || "").trim();
+    const url = String(req.query.url || "").trim();
+
+    if (!url) {
+      return res.status(400).send("Missing url");
+    }
+
+    await prisma.pitch.update({
+      where: { id: pitchId },
+      data: {
+        clickCount: { increment: 1 },
+        lastClickedAt: new Date(),
+      },
+    });
+
+    return res.redirect(url);
+  } catch (error: any) {
+    return res.status(500).send(error?.message ?? "Click tracking failed");
+  }
+});
+
+router.post("/:id/reply", async (req, res) => {
+  try {
+    const pitchId = String(req.params.id || "").trim();
+    const sentiment = String(req.body?.sentiment || "").toLowerCase();
+
+    const positiveReply = sentiment === "positive" ? true : undefined;
+    const negativeReply = sentiment === "negative" ? true : undefined;
+
+    const updated = await prisma.pitch.update({
+      where: { id: pitchId },
+      data: {
+        replyCount: { increment: 1 },
+        lastRepliedAt: new Date(),
+        ...(positiveReply !== undefined ? { positiveReply } : {}),
+        ...(negativeReply !== undefined ? { negativeReply } : {}),
+      },
+    });
+
+    return res.json({ ok: true, pitch: updated });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: "REPLY_TRACKING_FAILED",
       message: error?.message ?? String(error),
     });
   }

@@ -150,6 +150,16 @@ model Pitch {
   updatedAt        DateTime    @updatedAt
   playlistDetected Boolean     @default(false)
   playlistedAt     DateTime?
+  openCount        Int       @default(0)
+  clickCount       Int       @default(0)
+  replyCount       Int       @default(0)
+
+  lastOpenedAt     DateTime?
+  lastClickedAt    DateTime?
+  lastRepliedAt    DateTime?
+
+  positiveReply    Boolean?
+  negativeReply    Boolean?
 }
 
 enum Channel {
