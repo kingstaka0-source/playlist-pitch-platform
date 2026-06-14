@@ -98,6 +98,13 @@ process.on("unhandledRejection", (reason: unknown) => {
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
+
+  "https://ppp-frontend-weld.vercel.app",
+
+  "https://tunereach.app",
+  "https://www.tunereach.app",
+  "https://app.tunereach.app",
+  
   String(process.env.FRONTEND_URL || "").trim(),
 ].filter(Boolean);
 
