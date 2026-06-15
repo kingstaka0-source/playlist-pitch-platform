@@ -514,11 +514,51 @@ Tracking:
 ${openPixelUrl}
 `.trim();
 
+const htmlBody = `
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f6f6;font-family:Arial,sans-serif;color:#111;">
+    <div style="max-width:640px;margin:0 auto;padding:24px;">
+      <div style="background:#ffffff;border:1px solid #e5e5e5;border-radius:16px;padding:28px;">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:16px;">
+          Playlist Pitch Platform
+        </div>
+
+        <h1 style="font-size:22px;line-height:1.3;margin:0 0 12px;">
+          ${pitch.subject || `Track suggestion: ${track.title}`}
+        </h1>
+
+        <p style="font-size:15px;line-height:1.7;color:#222;white-space:pre-line;">
+          ${pitch.body || ""}
+        </p>
+
+        ${
+          trackedSpotifyUrl
+            ? `<div style="margin-top:24px;">
+                <a href="${trackedSpotifyUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:14px 18px;border-radius:999px;font-weight:bold;">
+                  Listen on Spotify
+                </a>
+              </div>`
+            : ""
+        }
+
+        <p style="font-size:12px;color:#777;margin-top:28px;line-height:1.5;">
+          Sent with Playlist Pitch Platform.
+        </p>
+
+        <img src="${openPixelUrl}" width="1" height="1" style="display:none;" alt="" />
+      </div>
+    </div>
+  </body>
+</html>
+`;
+
 await resend.emails.send({
   from,
   to,
   subject: pitch.subject || `Track suggestion: ${track.title}`,
   text: finalBody.trim(),
+  html: htmlBody,
 });
 
     const updated = await prisma.pitch.update({
@@ -777,12 +817,52 @@ Tracking:
 ${openPixelUrl}
 `.trim();
 
-      try {
+            try {
+        const htmlBody = `
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f6f6;font-family:Arial,sans-serif;color:#111;">
+    <div style="max-width:640px;margin:0 auto;padding:24px;">
+      <div style="background:#ffffff;border:1px solid #e5e5e5;border-radius:16px;padding:28px;">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:16px;">
+          Playlist Pitch Platform
+        </div>
+
+        <h1 style="font-size:22px;line-height:1.3;margin:0 0 12px;">
+          ${pitch.subject || `Track suggestion: ${track.title}`}
+        </h1>
+
+        <p style="font-size:15px;line-height:1.7;color:#222;white-space:pre-line;">
+          ${pitch.body || ""}
+        </p>
+
+        ${
+          trackedSpotifyUrl
+            ? `<div style="margin-top:24px;">
+                <a href="${trackedSpotifyUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:14px 18px;border-radius:999px;font-weight:bold;">
+                  Listen on Spotify
+                </a>
+              </div>`
+            : ""
+        }
+
+        <p style="font-size:12px;color:#777;margin-top:28px;line-height:1.5;">
+          Sent with Playlist Pitch Platform.
+        </p>
+
+        <img src="${openPixelUrl}" width="1" height="1" style="display:none;" alt="" />
+      </div>
+    </div>
+  </body>
+</html>
+`;
+
         await resend.emails.send({
           from,
           to,
           subject: pitch.subject || `Track suggestion: ${track.title}`,
           text: finalBody,
+          html: htmlBody,
         });
 
         await prisma.pitch.update({
