@@ -497,7 +497,7 @@ const apiBaseUrl =
   "https://playlist-pitch-platform.onrender.com";
 
 const openPixelUrl =
-  `${apiBaseUrl}/pitches/${pitch.id}/open`;
+  `${apiBaseUrl}/tracking/open/${pitch.id}`;
 
 const trackedSpotifyUrl = spotifyUrl
   ? `${apiBaseUrl}/pitches/${pitch.id}/click?url=${encodeURIComponent(
@@ -552,6 +552,8 @@ const htmlBody = `
   </body>
 </html>
 `;
+
+
 
 await resend.emails.send({
   from,
@@ -800,7 +802,7 @@ const apiBaseUrl =
   "https://playlist-pitch-platform.onrender.com";
 
 const openPixelUrl =
-  `${apiBaseUrl}/pitches/${pitch.id}/open`;
+  `${apiBaseUrl}/tracking/open/${pitch.id}`;
 
 const trackedSpotifyUrl = spotifyUrl
   ? `${apiBaseUrl}/pitches/${pitch.id}/click?url=${encodeURIComponent(
