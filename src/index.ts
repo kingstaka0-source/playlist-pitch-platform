@@ -24,6 +24,7 @@ import { spotifyDebug } from "./routes/spotifyDebug";
 import ai from "./routes/ai";
 import "./worker";
 import { detection } from "./routes/detection";
+import { tracking } from "./routes/tracking";
 
 const app = express();
 
@@ -104,7 +105,7 @@ const allowedOrigins = [
   "https://tunereach.app",
   "https://www.tunereach.app",
   "https://app.tunereach.app",
-  
+
   String(process.env.FRONTEND_URL || "").trim(),
 ].filter(Boolean);
 
@@ -133,6 +134,33 @@ app.post(
 );
 
 app.use(express.json({ limit: "1mb" }));
+app.get("/tracking/open/:pitchId", async (req, res) => {
+  try {
+    const pitchId = String(req.params.pitchId || "").trim();
+
+    if (pitchId) {
+      await prisma.pitch.update({
+        where: { id: pitchId },
+        data: {
+          openCount: { increment: 1 },
+          lastOpenedAt: new Date(),
+        },
+      });
+    }
+
+    const pixel = Buffer.from(
+      "R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+      "base64"
+    );
+
+    res.setHeader("Content-Type", "image/gif");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    return res.end(pixel);
+  } catch (err) {
+    console.error("TRACKING_OPEN_ERROR", err);
+    return res.status(204).end();
+  }
+});
 
 app.use(health);
 app.use(legal);
@@ -167,6 +195,7 @@ app.use(matches);
 app.use("/pitches", pitches);
 app.use(intake);
 app.use("/billing", billing);
+app.use("/tracking", tracking);
 app.use(dashboard);
 app.use(matchJobs);
 app.use(spotifyDebug);
