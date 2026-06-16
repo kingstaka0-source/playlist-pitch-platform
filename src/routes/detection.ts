@@ -51,14 +51,14 @@ detection.post("/detect-playlists/:trackId", async (req, res) => {
       });
 
       if (found && match.pitch) {
-        await prisma.$executeRawUnsafe(
-  `UPDATE "Pitch"
-   SET "playlistDetected" = true,
-       "playlistedAt" = NOW()
-   WHERE "id" = $1`,
-  match.pitch.id
-);
-      }
+  await prisma.pitch.update({
+    where: { id: match.pitch.id },
+    data: {
+      playlistDetected: true,
+      playlistedAt: new Date(),
+    },
+  });
+}
 
       results.push({
         playlist: match.playlist.name,

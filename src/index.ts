@@ -25,6 +25,7 @@ import ai from "./routes/ai";
 import "./worker";
 import { detection } from "./routes/detection";
 import { tracking } from "./routes/tracking";
+import { clickTracking } from "./routes/clickTracking";
 
 const app = express();
 
@@ -196,6 +197,7 @@ app.use("/pitches", pitches);
 app.use(intake);
 app.use("/billing", billing);
 app.use("/tracking", tracking);
+app.use("/tracking", clickTracking);
 app.use(dashboard);
 app.use(matchJobs);
 app.use(spotifyDebug);

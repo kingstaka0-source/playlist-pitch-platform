@@ -500,7 +500,7 @@ const openPixelUrl =
   `${apiBaseUrl}/tracking/open/${pitch.id}`;
 
 const trackedSpotifyUrl = spotifyUrl
-  ? `${apiBaseUrl}/pitches/${pitch.id}/click?url=${encodeURIComponent(
+  ? `${apiBaseUrl}/tracking/click/${pitch.id}?url=${encodeURIComponent(
       spotifyUrl
     )}`
   : "";
@@ -805,7 +805,7 @@ const openPixelUrl =
   `${apiBaseUrl}/tracking/open/${pitch.id}`;
 
 const trackedSpotifyUrl = spotifyUrl
-  ? `${apiBaseUrl}/pitches/${pitch.id}/click?url=${encodeURIComponent(
+  ? `${apiBaseUrl}/tracking/click/${pitch.id}?url=${encodeURIComponent(
       spotifyUrl
     )}`
   : "";
