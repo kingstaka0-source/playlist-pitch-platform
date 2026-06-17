@@ -125,6 +125,70 @@ curators.get("/curators", async (req, res) => {
   }
 });
 
+curators.get("/curators/analytics", async (_req, res) => {
+  try {
+    const rows = await prisma.curator.findMany({
+      include: {
+        playlists: {
+          include: {
+            matches: {
+              include: {
+                pitch: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const result = rows.map((curator) => {
+      const pitches = curator.playlists.flatMap((p) =>
+  p.matches
+    .map((m) => m.pitch)
+    .filter((pitch): pitch is NonNullable<typeof pitch> => pitch !== null)
+);
+
+      const sent = pitches.filter((p) => p.status === "SENT").length;
+
+      const opens = pitches.reduce(
+        (sum, p) => sum + (p.openCount || 0),
+        0
+      );
+
+      const clicks = pitches.reduce(
+        (sum, p) => sum + (p.clickCount || 0),
+        0
+      );
+
+      const replies = pitches.reduce(
+        (sum, p) => sum + (p.replyCount || 0),
+        0
+      );
+
+      const interested = pitches.some(
+        (p) => p.positiveReply === true
+      );
+
+      return {
+        id: curator.id,
+        name: curator.name,
+        email: curator.email,
+        sent,
+        opens,
+        clicks,
+        replies,
+        interested,
+      };
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({
+      error: error?.message ?? String(error),
+    });
+  }
+});
+
 curators.get("/curators/:id", async (req, res) => {
   try {
     const id = String(req.params.id || "");
@@ -171,3 +235,4 @@ curators.get("/curators/:id", async (req, res) => {
     });
   }
 });
+
