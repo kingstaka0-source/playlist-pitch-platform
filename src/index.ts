@@ -26,6 +26,7 @@ import "./worker";
 import { detection } from "./routes/detection";
 import { tracking } from "./routes/tracking";
 import { clickTracking } from "./routes/clickTracking";
+import { followups } from "./routes/followups";
 
 const app = express();
 
@@ -203,6 +204,7 @@ app.use(matchJobs);
 app.use(spotifyDebug);
 app.use("/ai", ai);
 app.use(detection);
+app.use(followups);
 
 app.get("/admin/cleanup-edm", async (_req, res) => {
   if (process.env.NODE_ENV === "production") {

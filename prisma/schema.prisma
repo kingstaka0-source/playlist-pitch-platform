@@ -155,6 +155,9 @@ model Pitch {
   clickCount       Int         @default(0)
   replyCount       Int         @default(0)
 
+  followUpSent     Boolean     @default(false)
+  followUpSentAt   DateTime?
+
   lastOpenedAt     DateTime?
   lastClickedAt    DateTime?
   lastRepliedAt    DateTime?
