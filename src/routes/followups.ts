@@ -103,3 +103,68 @@ followups.post("/followups/:id/mark-sent", async (req, res) => {
     });
   }
 });
+
+followups.post("/followups/:id/generate", async (req, res) => {
+  try {
+    const pitchId = String(req.params.id || "").trim();
+
+    const pitch = await prisma.pitch.findUnique({
+      where: {
+        id: pitchId,
+      },
+      include: {
+        match: {
+          include: {
+            track: true,
+            playlist: {
+              include: {
+                curator: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pitch) {
+      return res.status(404).json({
+        error: "PITCH_NOT_FOUND",
+      });
+    }
+
+    const trackTitle = pitch.match.track.title;
+    const playlistName = pitch.match.playlist.name;
+    const curatorName =
+      pitch.match.playlist.curator?.name || "there";
+
+    const subject = `Following up: ${trackTitle}`;
+
+    const body = `Hi ${curatorName},
+
+Just checking in regarding my previous email about "${trackTitle}".
+
+I thought this track could still be a great fit for "${playlistName}" and wanted to follow up in case it got buried in your inbox.
+
+I'd love to hear your thoughts if you've had a chance to listen.
+
+Thanks again for your time and consideration.
+
+Best regards`;
+
+    return res.json({
+      ok: true,
+      subject,
+      body,
+    });
+  } catch (error: any) {
+    console.error(
+      "FOLLOWUP_GENERATE_ERROR",
+      error?.message ?? error
+    );
+
+    return res.status(500).json({
+      error: "FOLLOWUP_GENERATE_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
