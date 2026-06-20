@@ -104,6 +104,42 @@ followups.post("/followups/:id/mark-sent", async (req, res) => {
   }
 });
 
+followups.post("/followups/:id/send", async (req, res) => {
+  try {
+    const pitchId = String(req.params.id || "").trim();
+
+    const pitch = await prisma.pitch.findUnique({
+      where: { id: pitchId },
+    });
+
+    if (!pitch) {
+      return res.status(404).json({
+        error: "PITCH_NOT_FOUND",
+      });
+    }
+
+    const updated = await prisma.pitch.update({
+      where: { id: pitchId },
+      data: {
+        followUpSent: true,
+        followUpSentAt: new Date(),
+      },
+    });
+
+    return res.json({
+      ok: true,
+      pitch: updated,
+    });
+  } catch (error: any) {
+    console.error("FOLLOWUP_SEND_ERROR", error?.message ?? error);
+
+    return res.status(500).json({
+      error: "FOLLOWUP_SEND_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
+
 followups.post("/followups/:id/generate", async (req, res) => {
   try {
     const pitchId = String(req.params.id || "").trim();
@@ -168,3 +204,4 @@ Best regards`;
     });
   }
 });
+
