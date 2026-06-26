@@ -98,7 +98,7 @@ async function main() {
       playlist: "Afro Fusion Rotation",
       opens: 6,
       clicks: 3,
-      positiveReply: true,
+      positiveReply: false,
     },
     {
       name: "Indie Playlist Lab",
@@ -266,20 +266,27 @@ TuneReach Demo`,
           status: "SENT",
           sentAt,
           sentTo: curator.email,
-          openCount: curatorData.opens,
-          clickCount: curatorData.clicks,
-          replyCount: curatorData.positiveReply ? 1 : 0,
-          positiveReply: curatorData.positiveReply,
+          openCount: curatorData.name !== "Indie Playlist Lab" ? 1 : 0,
+clickCount: curatorData.name === "Reggae Daily" ? 1 : 0,
+replyCount: curatorData.name === "Reggae Daily" ? 1 : 0,
+positiveReply: curatorData.name === "Reggae Daily",
           lastOpenedAt: openedAt,
-          lastClickedAt: curatorData.clicks > 0 ? openedAt : null,
-          lastRepliedAt: curatorData.positiveReply ? openedAt : null,
-          followUpSent: !curatorData.positiveReply && curatorData.opens > 0,
-          followUpSentAt:
-            !curatorData.positiveReply && curatorData.opens > 0
-              ? new Date()
-              : null,
-          playlistDetected: curatorData.positiveReply,
-          playlistedAt: curatorData.positiveReply ? new Date() : null,
+          lastClickedAt:
+  curatorData.name === "Reggae Daily" ||
+  curatorData.name === "Island Flow"
+    ? openedAt
+    : null,
+lastRepliedAt: curatorData.name === "Reggae Daily" ? openedAt : null,
+followUpSent:
+  curatorData.name !== "Reggae Daily" &&
+  curatorData.name !== "Indie Playlist Lab",
+followUpSentAt:
+  curatorData.name !== "Reggae Daily" &&
+  curatorData.name !== "Indie Playlist Lab"
+    ? new Date()
+    : null,
+playlistDetected: curatorData.name === "Reggae Daily",
+playlistedAt: curatorData.name === "Reggae Daily" ? new Date() : null,
         },
         create: {
           matchId: match.id,
@@ -296,20 +303,27 @@ TuneReach Demo`,
           status: "SENT",
           sentAt,
           sentTo: curator.email,
-          openCount: curatorData.opens,
-          clickCount: curatorData.clicks,
-          replyCount: curatorData.positiveReply ? 1 : 0,
-          positiveReply: curatorData.positiveReply,
+          openCount: curatorData.name !== "Indie Playlist Lab" ? 1 : 0,
+clickCount: curatorData.name === "Reggae Daily" ? 1 : 0,
+replyCount: curatorData.name === "Reggae Daily" ? 1 : 0,
+positiveReply: curatorData.name === "Reggae Daily",
           lastOpenedAt: openedAt,
-          lastClickedAt: curatorData.clicks > 0 ? openedAt : null,
-          lastRepliedAt: curatorData.positiveReply ? openedAt : null,
-          followUpSent: !curatorData.positiveReply && curatorData.opens > 0,
-          followUpSentAt:
-            !curatorData.positiveReply && curatorData.opens > 0
-              ? new Date()
-              : null,
-          playlistDetected: curatorData.positiveReply,
-          playlistedAt: curatorData.positiveReply ? new Date() : null,
+          lastClickedAt:
+  curatorData.name === "Reggae Daily" ||
+  curatorData.name === "Island Flow"
+    ? openedAt
+    : null,
+lastRepliedAt: curatorData.name === "Reggae Daily" ? openedAt : null,
+followUpSent:
+  curatorData.name !== "Reggae Daily" &&
+  curatorData.name !== "Indie Playlist Lab",
+followUpSentAt:
+  curatorData.name !== "Reggae Daily" &&
+  curatorData.name !== "Indie Playlist Lab"
+    ? new Date()
+    : null,
+playlistDetected: curatorData.name === "Reggae Daily",
+playlistedAt: curatorData.name === "Reggae Daily" ? new Date() : null,
         },
       });
 
