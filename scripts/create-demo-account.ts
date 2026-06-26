@@ -268,7 +268,9 @@ TuneReach Demo`,
           sentTo: curator.email,
           openCount: curatorData.name !== "Indie Playlist Lab" ? 1 : 0,
 clickCount:
-  curatorData.name === "Reggae Daily"
+  curatorData.name === "Reggae Daily" ||
+  curatorData.name === "Island Flow" ||
+  curatorData.name === "Roots Weekly"
     ? 1
     : 0,
 replyCount: curatorData.name === "Reggae Daily" ? 1 : 0,
@@ -276,7 +278,8 @@ positiveReply: curatorData.name === "Reggae Daily",
           lastOpenedAt: openedAt,
           lastClickedAt:
   curatorData.name === "Reggae Daily" ||
-  curatorData.name === "Island Flow"
+  curatorData.name === "Island Flow" ||
+  curatorData.name === "Roots Weekly"
     ? openedAt
     : null,
 lastRepliedAt: curatorData.name === "Reggae Daily" ? openedAt : null,
@@ -308,7 +311,9 @@ TuneReach Demo`,
           sentTo: curator.email,
           openCount: curatorData.name !== "Indie Playlist Lab" ? 1 : 0,
 clickCount:
-  curatorData.name === "Reggae Daily"
+  curatorData.name === "Reggae Daily" ||
+  curatorData.name === "Island Flow" ||
+  curatorData.name === "Roots Weekly"
     ? 1
     : 0,
 replyCount: curatorData.name === "Reggae Daily" ? 1 : 0,
@@ -316,7 +321,8 @@ positiveReply: curatorData.name === "Reggae Daily",
           lastOpenedAt: openedAt,
           lastClickedAt:
   curatorData.name === "Reggae Daily" ||
-  curatorData.name === "Island Flow"
+  curatorData.name === "Island Flow" ||
+  curatorData.name === "Roots Weekly"
     ? openedAt
     : null,
 lastRepliedAt: curatorData.name === "Reggae Daily" ? openedAt : null,
