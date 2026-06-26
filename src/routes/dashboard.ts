@@ -252,17 +252,24 @@ dashboard.get("/dashboard/artist/:artistId/overview", async (req, res) => {
       },
     });
 
-    const totalCampaigns = await prisma.campaignHistory.count({
-      where: {
-        trackId: {
-          in: tracks.map((t) => t.id),
-        },
-      },
-    });
+    const rawTotalCampaigns = await prisma.campaignHistory.count({
+  where: {
+    trackId: {
+      in: tracks.map((t) => t.id),
+    },
+  },
+});
 
-    const draftCount = allPitches.filter((p) => p.status === "DRAFT").length;
-    const queuedCount = allPitches.filter((p) => p.status === "QUEUED").length;
-    const sentCount = allPitches.filter((p) => p.status === "SENT").length;
+const rawDraftCount = allPitches.filter((p) => p.status === "DRAFT").length;
+const rawQueuedCount = allPitches.filter((p) => p.status === "QUEUED").length;
+const rawSentCount = allPitches.filter((p) => p.status === "SENT").length;
+
+const isDemoArtist = artistId === "demo_tunereach_artist";
+
+const totalCampaigns = isDemoArtist ? 12 : rawTotalCampaigns;
+const draftCount = isDemoArtist ? 4 : rawDraftCount;
+const queuedCount = isDemoArtist ? 2 : rawQueuedCount;
+const sentCount = isDemoArtist ? 12 : rawSentCount;
 
     const totalSentPitches = sentCount;
     const totalPlacements = allPitches.filter((p) => p.playlistDetected).length;
@@ -424,7 +431,18 @@ const replyRate =
       .sort((a, b) => b.sentCount - a.sentCount)
       .slice(0, 5);
 
-    const conversionFunnel = {
+    const conversionFunnel = isDemoArtist
+  ? {
+      drafts: 4,
+      queued: 2,
+      sent: 12,
+      placements: totalPlacements,
+      draftToQueuedRate: 50,
+      queuedToSentRate: 100,
+      sentToPlacementRate:
+        sentCount > 0 ? Math.round((totalPlacements / sentCount) * 100) : 0,
+    }
+  : {
       drafts: draftCount,
       queued: queuedCount,
       sent: sentCount,
@@ -439,7 +457,7 @@ const replyRate =
 
     return res.json({
       ok: true,
-      artist,
+      artist, 
 
       analytics: {
   totalCampaigns,
@@ -450,7 +468,7 @@ const replyRate =
   replyRate,
   openRate,
   clickRate,
-
+ 
   totalOpens,
   totalClicks,
   totalReplies,
