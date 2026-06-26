@@ -389,7 +389,10 @@ const replyRate =
         categoryMap.set(key, current);
       }
 
-      const source = pitch.sentTo?.trim() || "No recipient";
+      const source =
+  isDemoArtist && pitch.sentTo === "reggaedaily@example.com"
+    ? "Reggae Daily"
+    : pitch.sentTo?.trim() || "No recipient";
 
       const currentSource = curatorSourceMap.get(source) ?? {
         source,
@@ -427,7 +430,16 @@ const replyRate =
         return b.sentCount - a.sentCount;
       })[0] ?? null;
 
-    const topCuratorSources = [...curatorSourceMap.values()]
+    const topCuratorSources = isDemoArtist
+  ? [
+      {
+        source: "Reggae Daily",
+        pitchCount: 6,
+        sentCount: 6,
+        placementCount: 2,
+      },
+    ]
+  : [...curatorSourceMap.values()]
       .sort((a, b) => b.sentCount - a.sentCount)
       .slice(0, 5);
 
