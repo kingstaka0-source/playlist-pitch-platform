@@ -267,7 +267,10 @@ TuneReach Demo`,
           sentAt,
           sentTo: curator.email,
           openCount: curatorData.name !== "Indie Playlist Lab" ? 1 : 0,
-clickCount: curatorData.name === "Reggae Daily" ? 1 : 0,
+clickCount:
+  curatorData.name === "Reggae Daily"
+    ? 1
+    : 0,
 replyCount: curatorData.name === "Reggae Daily" ? 1 : 0,
 positiveReply: curatorData.name === "Reggae Daily",
           lastOpenedAt: openedAt,
@@ -304,7 +307,10 @@ TuneReach Demo`,
           sentAt,
           sentTo: curator.email,
           openCount: curatorData.name !== "Indie Playlist Lab" ? 1 : 0,
-clickCount: curatorData.name === "Reggae Daily" ? 1 : 0,
+clickCount:
+  curatorData.name === "Reggae Daily"
+    ? 1
+    : 0,
 replyCount: curatorData.name === "Reggae Daily" ? 1 : 0,
 positiveReply: curatorData.name === "Reggae Daily",
           lastOpenedAt: openedAt,

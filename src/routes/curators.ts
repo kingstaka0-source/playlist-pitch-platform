@@ -169,6 +169,17 @@ curators.get("/curators/analytics", async (_req, res) => {
         (p) => p.positiveReply === true
       );
 
+      const score =
+  opens * 10 +
+  clicks * 20 +
+  replies * 50 +
+  (interested ? 100 : 0);
+
+const status =
+  score >= 100 ? "HOT" :
+  score >= 30 ? "WARM" :
+  "COLD";
+
       return {
         id: curator.id,
         name: curator.name,
@@ -178,6 +189,8 @@ curators.get("/curators/analytics", async (_req, res) => {
         clicks,
         replies,
         interested,
+        score,
+        status,
       };
     });
 
@@ -236,3 +249,63 @@ curators.get("/curators/:id", async (req, res) => {
   }
 });
 
+curators.post("/curators/:id/positive-reply", async (req, res) => {
+  try {
+    const curatorId = String(req.params.id || "").trim();
+
+    const curator = await prisma.curator.findUnique({
+      where: { id: curatorId },
+      include: {
+        playlists: {
+          include: {
+            matches: {
+              include: {
+                pitch: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!curator) {
+      return res.status(404).json({
+        error: "CURATOR_NOT_FOUND",
+      });
+    }
+
+    const pitchIds = curator.playlists.flatMap((p) =>
+      p.matches
+        .map((m) => m.pitch?.id)
+        .filter(Boolean)
+    ) as string[];
+
+    await prisma.pitch.updateMany({
+      where: {
+        id: {
+          in: pitchIds,
+        },
+      },
+      data: {
+        positiveReply: true,
+        replyCount: 1,
+        lastRepliedAt: new Date(),
+      },
+    });
+
+    return res.json({
+      ok: true,
+      updated: pitchIds.length,
+    });
+  } catch (error: any) {
+    console.error(
+      "POSITIVE_REPLY_ERROR",
+      error?.message ?? error
+    );
+
+    return res.status(500).json({
+      error: "POSITIVE_REPLY_FAILED",
+      message: error?.message ?? String(error),
+    });
+  }
+});
