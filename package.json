@@ -5,12 +5,14 @@
   "scripts": {
     "dev": "ts-node-dev -r dotenv/config --respawn --transpile-only src/index.ts",
     "worker": "ts-node-dev -r dotenv/config --respawn --transpile-only src/worker.ts",
-    "build": "tsc -p .",
+    "build": "prisma generate && tsc -p .",
     "start": "node dist/index.js",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@clerk/backend": "^3.11.5",
+    "@clerk/express": "^2.1.41",
     "@prisma/client": "^5.17.0",
     "axios": "^1.7.4",
     "cors": "^2.8.5",

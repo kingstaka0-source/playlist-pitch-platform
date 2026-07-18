@@ -8,34 +8,29 @@ datasource db {
 }
 
 model Artist {
-  id        String  @id @default(cuid())
-  name      String
-  email     String? @unique
-  spotifyId String? @unique
-
+  id                    String             @id @default(cuid())
+  clerkUserId           String?            @unique
+  name                  String
+  email                 String?            @unique
+  spotifyId             String?            @unique
   spotifyAccessToken    String?
   spotifyRefreshToken   String?
   spotifyTokenExpiresAt DateTime?
   spotifyScopes         String?
-
-  createdAt DateTime @default(now())
-
-  plan       Plan      @default(FREE)
-  trialUntil DateTime?
-
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  subscriptionStatus   SubscriptionStatus @default(NONE)
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean            @default(false)
-
-  tracks Track[]
+  createdAt             DateTime           @default(now())
+  plan                  Plan               @default(FREE)
+  trialUntil            DateTime?
+  stripeCustomerId      String?            @unique
+  stripeSubscriptionId  String?            @unique
+  subscriptionStatus    SubscriptionStatus @default(NONE)
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean            @default(false)
+  tracks                Track[]
 }
 
 model Track {
   id             String   @id @default(cuid())
   artistId       String
-  artist         Artist   @relation(fields: [artistId], references: [id])
   spotifyTrackId String   @unique
   title          String
   artists        String[]
@@ -44,45 +39,32 @@ model Track {
   genres         String[]
   createdAt      DateTime @default(now())
   matches        Match[]
+  artist         Artist   @relation(fields: [artistId], references: [id])
 }
 
 model Curator {
-  id               String        @id @default(cuid())
-  name             String
-  email            String?       @unique
-  contactMethod    ContactMethod
-  consent          Boolean       @default(true)
-  languages        String[]      @default(["en"])
-  instagramUrl     String?
-  websiteUrl       String?
-  submissionUrl    String?
-  contactSourceUrl String?
-
-  contactConfidence Int @default(0)
-
-  enrichmentNotes String?
-
-  lastEnrichedAt DateTime?
-  createdAt      DateTime  @default(now())
-
-  playlists Playlist[]
-}
-
-enum ContactMethod {
-  INAPP
-  EMAIL
+  id                String        @id @default(cuid())
+  name              String
+  email             String?       @unique
+  contactMethod     ContactMethod
+  consent           Boolean       @default(true)
+  languages         String[]      @default(["en"])
+  createdAt         DateTime      @default(now())
+  contactConfidence Int           @default(0)
+  contactSourceUrl  String?
+  enrichmentNotes   String?
+  instagramUrl      String?
+  lastEnrichedAt    DateTime?
+  submissionUrl     String?
+  websiteUrl        String?
+  playlists         Playlist[]
 }
 
 model Playlist {
   id                String       @id @default(cuid())
   curatorId         String
-  curator           Curator      @relation(fields: [curatorId], references: [id])
   name              String
   spotifyPlaylistId String?
-  spotifyUrl        String?
-  description       String?
-  ownerDisplayName  String?
-  ownerSpotifyId    String?
   genres            String[]
   minBpm            Int?
   maxBpm            Int?
@@ -90,56 +72,50 @@ model Playlist {
   maxEnergy         Float?
   rules             Json?
   createdAt         DateTime     @default(now())
-  tasteEvents       TasteEvent[]
+  description       String?
+  ownerDisplayName  String?
+  ownerSpotifyId    String?
+  spotifyUrl        String?
   matches           Match[]
+  curator           Curator      @relation(fields: [curatorId], references: [id])
+  tasteEvents       TasteEvent[]
 }
 
 model TasteEvent {
   id             String     @id @default(cuid())
   playlistId     String
-  playlist       Playlist   @relation(fields: [playlistId], references: [id])
   spotifyTrackId String
   label          TasteLabel
   createdAt      DateTime   @default(now())
-}
-
-enum TasteLabel {
-  ADDED
-  SKIPPED
-  LIKED
+  playlist       Playlist   @relation(fields: [playlistId], references: [id])
 }
 
 model Match {
   id          String   @id @default(cuid())
   trackId     String
-  track       Track    @relation(fields: [trackId], references: [id])
   playlistId  String
-  playlist    Playlist @relation(fields: [playlistId], references: [id])
   fitScore    Int
   explanation String
   createdAt   DateTime @default(now())
+  playlist    Playlist @relation(fields: [playlistId], references: [id])
+  track       Track    @relation(fields: [trackId], references: [id])
   pitch       Pitch?
 
   @@unique([trackId, playlistId], name: "trackId_playlistId")
 }
 
 model CampaignHistory {
-  id String @id @default(cuid())
-
-  trackId String
-
-  matchesCount    Int @default(0)
-  placementsCount Int @default(0)
-
-  successRate Int @default(0)
-
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  trackId         String
+  matchesCount    Int      @default(0)
+  placementsCount Int      @default(0)
+  successRate     Int      @default(0)
+  createdAt       DateTime @default(now())
 }
 
 model Pitch {
   id               String      @id @default(cuid())
   matchId          String      @unique
-  match            Match       @relation(fields: [matchId], references: [id])
   subject          String
   body             String
   channel          Channel
@@ -150,20 +126,63 @@ model Pitch {
   updatedAt        DateTime    @updatedAt
   playlistDetected Boolean     @default(false)
   playlistedAt     DateTime?
-
-  openCount        Int         @default(0)
   clickCount       Int         @default(0)
+  lastClickedAt    DateTime?
+  lastOpenedAt     DateTime?
+  lastRepliedAt    DateTime?
+  negativeReply    Boolean?
+  openCount        Int         @default(0)
+  positiveReply    Boolean?
   replyCount       Int         @default(0)
-
   followUpSent     Boolean     @default(false)
   followUpSentAt   DateTime?
+  match            Match       @relation(fields: [matchId], references: [id])
+}
 
-  lastOpenedAt     DateTime?
-  lastClickedAt    DateTime?
-  lastRepliedAt    DateTime?
+model AgreementAcceptance {
+  id          String               @id @default(cuid())
+  subjectType AgreementSubjectType
+  subjectId   String
+  docType     AgreementDocType
+  version     String
+  acceptedAt  DateTime             @default(now())
+  ip          String?
+  userAgent   String?
+  meta        Json?
 
-  positiveReply    Boolean?
-  negativeReply    Boolean?
+  @@unique([subjectType, subjectId, docType, version], name: "subject_doc_version_unique")
+  @@index([subjectType, subjectId], map: "subject_lookup")
+}
+
+model MatchJob {
+  id          String         @id @default(cuid())
+  status      MatchJobStatus @default(QUEUED)
+  trackId     String
+  artistId    String?
+  runAt       DateTime       @default(now())
+  attempts    Int            @default(0)
+  maxAttempts Int            @default(5)
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  result      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, runAt])
+  @@index([trackId])
+  @@index([lockedAt])
+}
+
+enum ContactMethod {
+  INAPP
+  EMAIL
+}
+
+enum TasteLabel {
+  ADDED
+  SKIPPED
+  LIKED
 }
 
 enum Channel {
@@ -204,44 +223,9 @@ enum AgreementDocType {
   BILLING_TERMS
 }
 
-model AgreementAcceptance {
-  id          String               @id @default(cuid())
-  subjectType AgreementSubjectType
-  subjectId   String
-  docType     AgreementDocType
-  version     String
-  acceptedAt  DateTime             @default(now())
-  ip          String?
-  userAgent   String?
-  meta        Json?
-
-  @@unique([subjectType, subjectId, docType, version], name: "subject_doc_version_unique")
-  @@index([subjectType, subjectId], name: "subject_lookup")
-}
-
 enum MatchJobStatus {
   QUEUED
   RUNNING
   SUCCEEDED
   FAILED
-}
-
-model MatchJob {
-  id          String         @id @default(cuid())
-  status      MatchJobStatus @default(QUEUED)
-  trackId     String
-  artistId    String?
-  runAt       DateTime       @default(now())
-  attempts    Int            @default(0)
-  maxAttempts Int            @default(5)
-  lockedAt    DateTime?
-  lockedBy    String?
-  lastError   String?
-  result      Json?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  @@index([status, runAt])
-  @@index([trackId])
-  @@index([lockedAt])
 }

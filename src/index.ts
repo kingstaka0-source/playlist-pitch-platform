@@ -207,7 +207,7 @@ app.use(followups);
 app.use("/auth", authRoutes); 
 
 console.log("AUTH ROUTES REGISTERED");
-app.use("/auth", authRoutes);
+
 
 app.get("/admin/cleanup-edm", async (_req, res) => {
   if (process.env.NODE_ENV === "production") {
