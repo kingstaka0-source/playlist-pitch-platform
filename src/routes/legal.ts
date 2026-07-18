@@ -25,15 +25,26 @@ legal.post("/legal/accept", async (req, res) => {
     const safeSubjectType = subjectType as AgreementSubjectType;
     const safeDocType = docType as AgreementDocType;
 
-    const acceptance = await prisma.agreementAcceptance.create({
-      data: {
-        subjectType: safeSubjectType,
-        subjectId,
-        docType: safeDocType,
-        version,
-        acceptedAt: new Date(),
-      },
-    });
+   const acceptance = await prisma.agreementAcceptance.upsert({
+  where: {
+    subject_doc_version_unique: {
+      subjectType: safeSubjectType,
+      subjectId,
+      docType: safeDocType,
+      version,
+    },
+  },
+  update: {
+    acceptedAt: new Date(),
+  },
+  create: {
+    subjectType: safeSubjectType,
+    subjectId,
+    docType: safeDocType,
+    version,
+    acceptedAt: new Date(),
+  },
+});
 
     return res.json({ ok: true, acceptance });
   } catch (err: any) {
