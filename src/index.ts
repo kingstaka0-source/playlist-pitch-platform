@@ -318,7 +318,7 @@ const port = Number(process.env.PORT || 3100);
 logStartupConfig();
 
 const server = app.listen(port, "0.0.0.0", () => {
-  console.log(`API listening on http://127.0.0.1:${port}`);
+  console.log(`API listening on http://0.0.0.0:${port}`);
 });
 
 server.on("error", (error: Error) => {
@@ -326,4 +326,5 @@ server.on("error", (error: Error) => {
     message: error.message,
     stack: error.stack,
   });
+  process.exit(1);
 });
