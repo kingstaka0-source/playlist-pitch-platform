@@ -27,6 +27,8 @@ import { detection } from "./routes/detection";
 import { tracking } from "./routes/tracking";
 import { clickTracking } from "./routes/clickTracking";
 import { followups } from "./routes/followups";
+import authRoutes from "./routes/auth";
+
 
 const app = express();
 
@@ -108,25 +110,22 @@ const allowedOrigins = [
   "https://www.tunereach.app",
   "https://app.tunereach.app",
 
+  "http://localhost:3000",
+"https://tunereach.app",
+"https://www.tunereach.app",
+
   String(process.env.FRONTEND_URL || "").trim(),
 ].filter(Boolean);
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.warn("CORS BLOCKED ORIGIN", origin);
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
+    origin: [
+      "http://localhost:3000",
+      "https://tunereach.app",
+      "https://www.tunereach.app",
+    ],
     credentials: true,
-  })
+  }),
 );
 
 app.post(
@@ -205,6 +204,10 @@ app.use(spotifyDebug);
 app.use("/ai", ai);
 app.use(detection);
 app.use(followups);
+app.use("/auth", authRoutes); 
+
+console.log("AUTH ROUTES REGISTERED");
+app.use("/auth", authRoutes);
 
 app.get("/admin/cleanup-edm", async (_req, res) => {
   if (process.env.NODE_ENV === "production") {
