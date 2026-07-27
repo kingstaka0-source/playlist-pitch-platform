@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { Resend } from "resend";
 import { prisma } from "../db";
 import { buildPitchPrompt } from "../services/ai/buildPitchPrompt";
@@ -13,11 +13,6 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-type ArtistIdSource = {
-  headers?: Record<string, unknown>;
-  query?: Record<string, unknown>;
-};
-
 type CuratorLike = {
   email?: string | null;
   contactMethod?: string | null;
@@ -30,16 +25,8 @@ type LaunchCampaignRequestBody = {
   queueEmail?: unknown;
 };
 
-function getArtistId(req: ArtistIdSource) {
-  const headerArtistId =
-    typeof req.headers?.["x-artist-id"] === "string"
-      ? req.headers["x-artist-id"]
-      : "";
-
-  const queryArtistId =
-    typeof req.query?.artistId === "string" ? req.query.artistId : "";
-
-  return String(headerArtistId || queryArtistId || "").trim();
+function getArtistId(res: Response): string {
+  return String(res.locals?.artist?.id || "").trim();
 }
 
 function canEmailCurator(curator: CuratorLike | null | undefined) {
@@ -154,18 +141,17 @@ async function buildAiPitchForMatch(match: any, channel: string) {
  */
 router.get("/", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
     const trackId =
       typeof req.query.trackId === "string" ? req.query.trackId.trim() : "";
     const matchId =
       typeof req.query.matchId === "string" ? req.query.matchId.trim() : "";
 
     if (!artistId) {
-      return res.status(400).json({
-        error: "MISSING_ARTIST_ID",
-        message: "artistId is required",
-      });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     if (!trackId && !matchId) {
       return res.status(400).json({
@@ -226,14 +212,13 @@ router.get("/", async (req, res) => {
  */
 router.get("/all", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({
-        error: "MISSING_ARTIST_ID",
-        message: "artistId is required",
-      });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const pitches = await prisma.pitch.findMany({
       where: {
@@ -277,12 +262,21 @@ router.get("/all", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
     const matchId = req.body?.matchId;
 
-    if (!artistId || !matchId) {
-      return res.status(400).json({ error: "Missing data" });
-    }
+    if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
+
+if (!matchId) {
+  return res.status(400).json({
+    error: "MISSING_MATCH_ID",
+    message: "matchId is required",
+  });
+}
 
     const match = await prisma.match.findUnique({
       where: { id: matchId },
@@ -343,15 +337,21 @@ router.post("/", async (req, res) => {
  */
 router.get("/:id", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
     const pitchId = String(req.params.id || "").trim();
 
-    if (!artistId || !pitchId) {
-      return res.status(400).json({
-        error: "MISSING_DATA",
-        message: "artistId and pitch id are required",
-      });
-    }
+    if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
+
+if (!pitchId) {
+  return res.status(400).json({
+    error: "MISSING_PITCH_ID",
+    message: "pitch id is required",
+  });
+}
 
     const pitch = await prisma.pitch.findUnique({
       where: { id: pitchId },
@@ -399,16 +399,22 @@ router.get("/:id", async (req, res) => {
 
 router.post("/:id/email", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
     const pitchId =
       typeof req.params.id === "string" ? req.params.id.trim() : "";
 
-    if (!artistId || !pitchId) {
-      return res.status(400).json({
-        error: "MISSING_DATA",
-        message: "artistId and pitch id are required",
-      });
-    }
+    if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
+
+if (!pitchId) {
+  return res.status(400).json({
+    error: "MISSING_PITCH_ID",
+    message: "pitch id is required",
+  });
+}
 
     const pitch = await prisma.pitch.findUnique({
       where: { id: pitchId },
@@ -592,7 +598,7 @@ await resend.emails.send({
  */
 router.post("/launch-campaign", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
     const trackId =
       typeof req.body?.trackId === "string" ? req.body.trackId.trim() : "";
 
@@ -601,12 +607,18 @@ router.post("/launch-campaign", async (req, res) => {
         ? Math.min(req.body.limit, 50)
         : 20;
 
-    if (!artistId || !trackId) {
-      return res.status(400).json({
-        error: "MISSING_DATA",
-        message: "artistId and trackId are required",
-      });
-    }
+    if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
+
+if (!trackId) {
+  return res.status(400).json({
+    error: "MISSING_TRACK_ID",
+    message: "trackId is required",
+  });
+}
 
     const usage = await getUsageOr404(artistId);
 
@@ -707,16 +719,22 @@ router.post("/launch-campaign", async (req, res) => {
 
 router.post("/send-all", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
     const trackId =
       typeof req.body?.trackId === "string" ? req.body.trackId.trim() : "";
 
-    if (!artistId || !trackId) {
-      return res.status(400).json({
-        error: "MISSING_DATA",
-        message: "artistId and trackId are required",
-      });
-    }
+    if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
+
+if (!trackId) {
+  return res.status(400).json({
+    error: "MISSING_TRACK_ID",
+    message: "trackId is required",
+  });
+}
 
     const usage = await getUsageOr404(artistId);
 

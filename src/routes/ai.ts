@@ -14,11 +14,13 @@ const router = Router();
 router.post("/generate-and-save-pitch", async (req, res) => {
   try {
     const { matchId, channel = "EMAIL" } = req.body;
-    const artistId = req.header("x-artist-id");
+    const artistId = String(res.locals?.artist?.id || "").trim();
 
     if (!artistId) {
-      return res.status(400).json({ error: "Missing x-artist-id header" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     if (!matchId) {
       return res.status(400).json({ error: "matchId is required" });

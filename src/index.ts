@@ -28,6 +28,8 @@ import { tracking } from "./routes/tracking";
 import { clickTracking } from "./routes/clickTracking";
 import { followups } from "./routes/followups";
 import authRoutes from "./routes/auth";
+import { clerkMiddleware } from "@clerk/express";
+import { requireCurrentArtist } from "./auth/requireCurrentArtist";
 
 
 const app = express();
@@ -135,6 +137,7 @@ app.post(
 );
 
 app.use(express.json({ limit: "1mb" }));
+app.use(clerkMiddleware());
 app.get("/tracking/open/:pitchId", async (req, res) => {
   try {
     const pitchId = String(req.params.pitchId || "").trim();
@@ -163,14 +166,53 @@ app.get("/tracking/open/:pitchId", async (req, res) => {
   }
 });
 
+// Publieke route
 app.use(health);
+
+// Clerk bootstrap: authenticatie wordt in de route zelf gecontroleerd
+app.use("/auth", authRoutes);
+
+// Alle legal-routes vereisen een echte ingelogde artiest
+app.use("/legal", requireCurrentArtist);
 app.use(legal);
+
+// Spotify-callback moet publiek blijven.
+// Alle andere Spotify-accountacties vereisen een ingelogde artiest.
+app.use("/auth/spotify", (req, res, next) => {
+  if (req.path === "/callback") {
+    return next();
+  }
+
+  return requireCurrentArtist(req, res, next);
+});
+
 app.use(spotifyAuth);
 
-app.use("/billing", requireLegal("ARTIST", "BILLING_TERMS"));
-app.use("/pitches", requireLegal("ARTIST", "PITCH_CONSENT"));
-app.use("/intake/track", requireLegal("ARTIST", "TERMS"));
-app.use("/intake/track", requireLegal("ARTIST", "PRIVACY"));
+// Alle trackroutes zijn privé
+app.use("/tracks", requireCurrentArtist);
+
+// Playlistacties gebruiken de ingelogde artiest
+app.use("/playlists", requireCurrentArtist);
+
+
+app.use(
+  "/billing",
+  requireCurrentArtist,
+  requireLegal("ARTIST", "BILLING_TERMS"),
+);
+
+app.use(
+  "/pitches",
+  requireCurrentArtist,
+  requireLegal("ARTIST", "PITCH_CONSENT"),
+);
+
+app.use(
+  "/intake/track",
+  requireCurrentArtist,
+  requireLegal("ARTIST", "TERMS"),
+  requireLegal("ARTIST", "PRIVACY"),
+);
 
 console.log("ROUTES CHECK", {
   health: !!health,
@@ -198,13 +240,18 @@ app.use(intake);
 app.use("/billing", billing);
 app.use("/tracking", tracking);
 app.use("/tracking", clickTracking);
+
+app.use("/dashboard", requireCurrentArtist);
 app.use(dashboard);
+
 app.use(matchJobs);
 app.use(spotifyDebug);
+
+app.use("/ai", requireCurrentArtist);
 app.use("/ai", ai);
 app.use(detection);
 app.use(followups);
-app.use("/auth", authRoutes); 
+ 
 
 console.log("AUTH ROUTES REGISTERED");
 

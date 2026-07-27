@@ -1,15 +1,9 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { prisma } from "../db";
 import { importSpotifyPlaylistForArtist } from "../lib/spotifyPlaylistImporter";
 import { Prisma } from "@prisma/client";
 
 export const playlists = Router();
-
-type RequestLike = {
-  headers?: Record<string, unknown>;
-  body?: Record<string, unknown>;
-  query?: Record<string, unknown>;
-};
 
 type CuratorLike = {
   email?: string | null;
@@ -56,19 +50,8 @@ type SpotifyPlaylistSearchResponse = {
   message?: string;
 };
 
-function getArtistId(req: RequestLike) {
-  const headerArtistId =
-    typeof req.headers?.["x-artist-id"] === "string"
-      ? req.headers["x-artist-id"]
-      : "";
-
-  const bodyArtistId =
-    typeof req.body?.artistId === "string" ? req.body.artistId : "";
-
-  const queryArtistId =
-    typeof req.query?.artistId === "string" ? req.query.artistId : "";
-
-  return String(headerArtistId || bodyArtistId || queryArtistId || "").trim();
+function getArtistId(res: Response): string {
+  return String(res.locals?.artist?.id || "").trim();
 }
 
 function canEmailCurator(curator: CuratorLike | null | undefined) {
@@ -400,7 +383,7 @@ playlists.post("/playlists/discover", async (req, res) => {
 
 playlists.post("/playlists/import-from-spotify", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
 
     const playlistUrlOrId = String(
       req.body?.playlistUrl ||
@@ -411,8 +394,10 @@ playlists.post("/playlists/import-from-spotify", async (req, res) => {
     ).trim();
 
     if (!artistId) {
-      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     if (!playlistUrlOrId) {
       return res.status(400).json({ error: "MISSING_PLAYLIST_URL_OR_ID" });
@@ -517,11 +502,13 @@ playlists.get("/playlists/search-spotify", async (req, res) => {
 
 playlists.post("/playlists/:id/auto-pitch-all", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const playlistId = String(req.params.id || "").trim();
     if (!playlistId) {

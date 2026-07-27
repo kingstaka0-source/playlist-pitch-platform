@@ -1,10 +1,14 @@
-import type { Request, Response, NextFunction } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { prisma } from "./db";
 
 type SubjectType = "ARTIST" | "CURATOR";
-type DocType = "TERMS" | "PRIVACY" | "PITCH_CONSENT" | "BILLING_TERMS";
 
-// Houd dit gelijk aan legal.ts
+type DocType =
+  | "TERMS"
+  | "PRIVACY"
+  | "PITCH_CONSENT"
+  | "BILLING_TERMS";
+
 const CURRENT = {
   TERMS: "2026-02-16",
   PRIVACY: "2026-02-16",
@@ -12,76 +16,67 @@ const CURRENT = {
   BILLING_TERMS: "2026-02-16",
 } as const;
 
-function pickFirst(...vals: any[]) {
-  for (const v of vals) {
-    const s = String(v ?? "").trim();
-    if (s) return s;
-  }
-  return "";
-}
-
-function getSubject(req: Request, subjectType: SubjectType) {
-  // ✅ Support BOTH styles:
-  // - New: artistId / x-artist-id
-  // - Old: subjectId / x-subject-id
+function getAuthenticatedSubjectId(
+  req: Request,
+  res: Response,
+  subjectType: SubjectType,
+) {
   if (subjectType === "ARTIST") {
-    const id = pickFirst(
-      (req.body as any)?.artistId,
-      (req.query as any)?.artistId,
-      req.headers["x-artist-id"],
-      // legacy aliases:
-      (req.body as any)?.subjectId,
-      (req.query as any)?.subjectId,
-      req.headers["x-subject-id"]
-    );
-    return id || null;
+    const artistId = String(
+      res.locals.artist?.id ||
+        (req as any)?.legal?.artistId ||
+        "",
+    ).trim();
+
+    return artistId || null;
   }
 
-  if (subjectType === "CURATOR") {
-    const id = pickFirst(
-      (req.body as any)?.curatorId,
-      (req.query as any)?.curatorId,
-      req.headers["x-curator-id"]
-    );
-    return id || null;
-  }
-
+  // Curator-authenticatie heeft later een eigen accountkoppeling nodig.
   return null;
 }
 
-export function requireLegal(subjectType: SubjectType, docType: DocType) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+export function requireLegal(
+  subjectType: SubjectType,
+  docType: DocType,
+) {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
     try {
-      const subjectId = getSubject(req, subjectType);
+      const subjectId = getAuthenticatedSubjectId(
+        req,
+        res,
+        subjectType,
+      );
+
       if (!subjectId) {
-        return res.status(400).json({
-          error: "MISSING_SUBJECT_ID",
-          message:
-            subjectType === "ARTIST"
-              ? "Missing artistId/subjectId (body/query/x-artist-id/x-subject-id)"
-              : "Missing curatorId (body/query/x-curator-id)",
+        return res.status(401).json({
+          error: "AUTHENTICATED_SUBJECT_REQUIRED",
+          subjectType,
         });
       }
 
-      const requiredVersion = (CURRENT as any)[docType] as string | undefined;
-      if (!requiredVersion) {
-        return res.status(500).json({
-          error: "LEGAL_CONFIG_ERROR",
-          message: "Unknown docType config",
+      const requiredVersion = CURRENT[docType];
+
+      const acceptance =
+        await prisma.agreementAcceptance.findUnique({
+          where: {
+            subject_doc_version_unique: {
+              subjectType,
+              subjectId,
+              docType,
+              version: requiredVersion,
+            },
+          },
+          select: {
+            id: true,
+            acceptedAt: true,
+          },
         });
-      }
 
-      const row = await prisma.agreementAcceptance.findFirst({
-        where: {
-          subjectType: subjectType as any,
-          subjectId,
-          docType: docType as any,
-          version: requiredVersion,
-        },
-        select: { id: true, acceptedAt: true },
-      });
-
-      if (!row) {
+      if (!acceptance) {
         return res.status(403).json({
           error: "LEGAL_NOT_ACCEPTED",
           subjectType,
@@ -91,10 +86,25 @@ export function requireLegal(subjectType: SubjectType, docType: DocType) {
         });
       }
 
+      (req as any).legal = {
+        ...(req as any).legal,
+        artistId:
+          subjectType === "ARTIST"
+            ? subjectId
+            : (req as any)?.legal?.artistId,
+        subjectType,
+        subjectId,
+        docType,
+        version: requiredVersion,
+      };
+
       return next();
-    } catch (e: any) {
-      console.error("LEGAL GATE ERROR", e?.message ?? e);
-      return res.status(500).json({ error: "LEGAL_GATE_FAILED" });
+    } catch (error) {
+      console.error("LEGAL_GATE_ERROR", error);
+
+      return res.status(500).json({
+        error: "LEGAL_GATE_FAILED",
+      });
     }
   };
 }

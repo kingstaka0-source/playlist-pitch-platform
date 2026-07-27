@@ -8,38 +8,59 @@ datasource db {
 }
 
 model Artist {
-  id                    String             @id @default(cuid())
-  clerkUserId           String?            @unique
-  name                  String
-  email                 String?            @unique
-  spotifyId             String?            @unique
-  spotifyAccessToken    String?
-  spotifyRefreshToken   String?
-  spotifyTokenExpiresAt DateTime?
-  spotifyScopes         String?
-  createdAt             DateTime           @default(now())
-  plan                  Plan               @default(FREE)
-  trialUntil            DateTime?
-  stripeCustomerId      String?            @unique
-  stripeSubscriptionId  String?            @unique
-  subscriptionStatus    SubscriptionStatus @default(NONE)
-  currentPeriodEnd      DateTime?
-  cancelAtPeriodEnd     Boolean            @default(false)
-  tracks                Track[]
+  id                      String             @id @default(cuid())
+  clerkUserId             String?            @unique
+  name                    String
+  email                   String?            @unique
+  spotifyId               String?            @unique
+  spotifyArtistId         String?            @unique
+  spotifyArtistName       String?
+  spotifyArtistUrl        String?
+  spotifyArtistImageUrl   String?
+  spotifyArtistFollowers  Int?
+  spotifyArtistVerifiedAt DateTime?
+  spotifyAccessToken      String?
+  spotifyRefreshToken     String?
+  spotifyTokenExpiresAt   DateTime?
+  spotifyScopes           String?
+  createdAt               DateTime           @default(now())
+  plan                    Plan               @default(FREE)
+  trialUntil              DateTime?
+  stripeCustomerId        String?            @unique
+  stripeSubscriptionId    String?            @unique
+  subscriptionStatus      SubscriptionStatus @default(NONE)
+  currentPeriodEnd        DateTime?
+  cancelAtPeriodEnd       Boolean            @default(false)
+  tracks                  Track[]
 }
 
 model Track {
-  id             String   @id @default(cuid())
-  artistId       String
-  spotifyTrackId String   @unique
-  title          String
-  artists        String[]
-  durationMs     Int
-  audioFeatures  Json
-  genres         String[]
-  createdAt      DateTime @default(now())
-  matches        Match[]
-  artist         Artist   @relation(fields: [artistId], references: [id])
+  id              String   @id @default(cuid())
+  artistId        String
+  spotifyTrackId String
+  spotifyAlbumId  String?
+  spotifyUrl      String?
+  title           String
+  artists         String[]
+  albumName       String?
+  albumImageUrl   String?
+  releaseDate     String?
+  isrc            String?
+  trackNumber     Int?
+  discNumber      Int?
+  explicit        Boolean  @default(false)
+  durationMs      Int
+  audioFeatures   Json
+  genres          String[]
+  createdAt       DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  matches         Match[]
+  artist          Artist   @relation(fields: [artistId], references: [id])
+
+  @@unique([artistId, spotifyTrackId])
+
+  @@index([artistId])
+  @@index([isrc])
 }
 
 model Curator {

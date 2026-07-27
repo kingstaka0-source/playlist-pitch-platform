@@ -1,9 +1,80 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
+import { createHmac, timingSafeEqual } from "crypto";
 import axios from "axios";
 import { prisma } from "../db";
 import { env } from "../env";
+import { discoverSpotifyArtist } from "../services/spotify/discovery";
+import { loadSpotifyReleases } from "../services/spotify/releases";
+import { importSpotifyCatalog } from "../services/spotify/importCatalog";
+import { getSpotifyAppAccessToken } from "../spotifyAppClient";
 
 export const spotifyAuth = Router();
+
+function getArtistId(res: Response): string {
+  return String(res.locals?.artist?.id || "").trim();
+}
+
+function createSpotifyState(artistId: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({
+      artistId,
+      createdAt: Date.now(),
+    })
+  ).toString("base64url");
+
+  const signature = createHmac("sha256", CLIENT_SECRET)
+    .update(payload)
+    .digest("base64url");
+
+  return `${payload}.${signature}`;
+}
+
+function readSpotifyState(state: string): {
+  artistId: string;
+  createdAt: number;
+} {
+  const [payload, suppliedSignature] = state.split(".");
+
+  if (!payload || !suppliedSignature) {
+    throw new Error("INVALID_SPOTIFY_STATE");
+  }
+
+  const expectedSignature = createHmac("sha256", CLIENT_SECRET)
+    .update(payload)
+    .digest("base64url");
+
+  const suppliedBuffer = Buffer.from(suppliedSignature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  if (
+    suppliedBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(suppliedBuffer, expectedBuffer)
+  ) {
+    throw new Error("INVALID_SPOTIFY_STATE");
+  }
+
+  const decoded = JSON.parse(
+    Buffer.from(payload, "base64url").toString("utf8")
+  );
+
+  const artistId = String(decoded?.artistId || "").trim();
+  const createdAt = Number(decoded?.createdAt || 0);
+
+  if (!artistId || !Number.isFinite(createdAt)) {
+    throw new Error("INVALID_SPOTIFY_STATE");
+  }
+
+  const tenMinutes = 10 * 60 * 1000;
+
+  if (Date.now() - createdAt > tenMinutes) {
+    throw new Error("EXPIRED_SPOTIFY_STATE");
+  }
+
+  return {
+    artistId,
+    createdAt,
+  };
+}
 
 function must(name: string, v?: string) {
   if (!v) throw new Error(`Missing env: ${name}`);
@@ -25,15 +96,20 @@ const FRONTEND_URL = env.FRONTEND_URL || "http://localhost:3000";
  */
 spotifyAuth.get("/auth/spotify", async (req, res) => {
   try {
-    const artistId = String(req.query.artistId || "");
-    if (!artistId) return res.status(400).send("Missing artistId");
+    const artistId = getArtistId(res);
+
+if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     // check artist bestaat (optioneel maar handig)
     const artist = await prisma.artist.findUnique({ where: { id: artistId } });
     if (!artist) return res.status(404).send("Artist not found");
 
     // state = base64url JSON (zodat callback weet welke artist het is)
-    const state = Buffer.from(JSON.stringify({ artistId })).toString("base64url");
+    const state = createSpotifyState(artistId);
 
     const scope = ["user-read-email", "user-read-private"].join(" ");
 
@@ -61,14 +137,13 @@ spotifyAuth.get("/auth/spotify", async (req, res) => {
  */
 spotifyAuth.get("/auth/spotify/status", async (req, res) => {
   try {
-    const artistId = String(req.query.artistId || "").trim();
+    const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({
-        error: "MISSING_ARTIST_ID",
-        message: "artistId is required",
-      });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -149,20 +224,133 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
 });
 
 /**
+ * Automatically discover the public Spotify artist profile.
+ *
+ * GET /auth/spotify/discovery?artistId=...
+ */
+spotifyAuth.get("/auth/spotify/discovery", async (req, res) => {
+  try {
+    const artistId = getArtistId(res);
+
+    if (!artistId) {
+  return res.status(401).json({
+    success: false,
+    error: "UNAUTHORIZED",
+  });
+}
+
+    const spotifyArtist =
+      await discoverSpotifyArtist(artistId);
+
+    return res.json({
+      success: true,
+      artist: spotifyArtist,
+      nextStep: "LOAD_RELEASES",
+    });
+  } catch (error: any) {
+    console.error(
+      "SPOTIFY ARTIST DISCOVERY ERROR",
+      error?.response?.data ??
+        error?.message ??
+        error
+    );
+
+    const errorCode =
+      error?.message || "SPOTIFY_ARTIST_DISCOVERY_FAILED";
+
+    if (errorCode === "ARTIST_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        error: errorCode,
+      });
+    }
+
+    if (errorCode === "SPOTIFY_NOT_CONNECTED") {
+      return res.status(401).json({
+        success: false,
+        error: errorCode,
+        message: "Connect Spotify before discovering an artist.",
+      });
+    }
+
+    if (
+      errorCode === "SPOTIFY_REAUTHORIZATION_REQUIRED"
+    ) {
+      return res.status(401).json({
+        success: false,
+        error: errorCode,
+        reconnectSpotify: true,
+      });
+    }
+
+    if (errorCode === "SPOTIFY_ARTIST_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        error: errorCode,
+        message:
+          "No exact Spotify artist profile was found.",
+        candidates: error?.candidates ?? [],
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: "SPOTIFY_ARTIST_DISCOVERY_FAILED",
+      message: errorCode,
+    });
+  }
+});
+
+/**
  * Callback
  * GET /auth/spotify/callback?code=...&state=...
  */
 spotifyAuth.get("/auth/spotify/callback", async (req, res) => {
   try {
-    const code = String(req.query.code || "");
+    const spotifyError = String(req.query.error || "");
     const state = String(req.query.state || "");
+
+    if (spotifyError) {
+  let artistId = "";
+
+  try {
+    if (state) {
+      artistId = readSpotifyState(state).artistId;
+    }
+  } catch {
+    // Ongeldige of verlopen state: redirect zonder artistId
+  }
+
+  const params = new URLSearchParams({
+    spotify: "cancelled",
+  });
+
+  if (artistId) {
+    params.set("artistId", artistId);
+  }
+
+  return res.redirect(
+    `${FRONTEND_URL}/onboarding/spotify?${params.toString()}`
+  );
+}
+
+    const code = String(req.query.code || "");
 
     if (!code) return res.status(400).send("Missing code");
     if (!state) return res.status(400).send("Missing state");
 
-    const decoded = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
-    const artistId = decoded.artistId as string;
-    if (!artistId) return res.status(400).send("Invalid state");
+    let artistId: string;
+
+try {
+  artistId = readSpotifyState(state).artistId;
+} catch (error: any) {
+  const code = error?.message || "INVALID_SPOTIFY_STATE";
+
+  return res.status(400).json({
+    error: code,
+    message: "Spotify authorization state is invalid or expired.",
+  });
+}
 
     // 1) Exchange code -> tokens
     const tokenRes = await axios.post(
@@ -220,3 +408,164 @@ spotifyAuth.get("/auth/spotify/callback", async (req, res) => {
     return res.status(500).send("Spotify callback failed");
   }
 });
+
+spotifyAuth.get(
+  "/auth/spotify/releases",
+  async (req, res) => {
+    try {
+      const artistId = getArtistId(res);
+
+if (!artistId) {
+  return res.status(401).json({
+    success: false,
+    error: "UNAUTHORIZED",
+  });
+}
+
+      const releases =
+        await loadSpotifyReleases(artistId);
+
+      return res.json({
+        success: true,
+        total: releases.length,
+        releases,
+        nextStep: "IMPORT_TRACKS",
+      });
+    } catch (error: any) {
+  const spotifyStatus = error?.response?.status;
+  const retryAfter =
+    error?.response?.headers?.["retry-after"];
+
+  console.error(
+    "SPOTIFY RELEASE LOAD ERROR",
+    {
+      status: spotifyStatus,
+      data: error?.response?.data,
+      retryAfter,
+      message: error?.message,
+    }
+  );
+
+  
+
+  if (spotifyStatus === 429) {
+    if (retryAfter) {
+      res.setHeader("Retry-After", String(retryAfter));
+    }
+
+    return res.status(429).json({
+      success: false,
+      error: "SPOTIFY_RATE_LIMITED",
+      message:
+        "Spotify rate limit is active. Do not retry until the waiting period has passed.",
+      retryAfterSeconds: retryAfter
+        ? Number(retryAfter)
+        : null,
+    });
+  }
+
+  return res.status(
+    spotifyStatus && spotifyStatus >= 400
+      ? spotifyStatus
+      : 500
+  ).json({
+    success: false,
+    error:
+      error?.message ||
+      "SPOTIFY_RELEASE_LOAD_FAILED",
+  });
+}
+  }
+);
+
+spotifyAuth.post(
+  "/auth/spotify/import-all-tracks",
+  async (req, res) => {
+    try {
+      const artistId = getArtistId(res);
+
+      if (!artistId) {
+  return res.status(401).json({
+    success: false,
+    error: "UNAUTHORIZED",
+  });
+}
+
+      const result = await importSpotifyCatalog(artistId);
+
+      return res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error: any) {
+      console.error(
+        "SPOTIFY CATALOG IMPORT ERROR",
+        error?.response?.data ??
+          error?.message ??
+          error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          error?.response?.data?.error?.message ||
+          error?.message ||
+          "SPOTIFY_CATALOG_IMPORT_FAILED",
+      });
+    }
+  }
+);
+
+spotifyAuth.get(
+  "/auth/spotify/test-audio-features",
+  async (req, res) => {
+    try {
+      const spotifyTrackId = String(
+        req.query.spotifyTrackId || ""
+      ).trim();
+
+      if (!spotifyTrackId) {
+        return res.status(400).json({
+          success: false,
+          error: "MISSING_SPOTIFY_TRACK_ID",
+        });
+      }
+
+      const appToken = await getSpotifyAppAccessToken();
+
+      const response = await axios.get(
+        `https://api.spotify.com/v1/audio-features/${spotifyTrackId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${appToken}`,
+          },
+        }
+      );
+
+      return res.json({
+        success: true,
+        audioFeatures: response.data,
+      });
+    } catch (error: any) {
+      console.error(
+        "SPOTIFY AUDIO FEATURES TEST ERROR",
+        {
+          status: error?.response?.status,
+          data: error?.response?.data,
+          message: error?.message,
+        }
+      );
+
+      return res.status(
+        error?.response?.status || 500
+      ).json({
+        success: false,
+        status: error?.response?.status || 500,
+        error:
+          error?.response?.data ||
+          error?.message ||
+          "AUDIO_FEATURES_TEST_FAILED",
+      });
+    }
+  }
+);

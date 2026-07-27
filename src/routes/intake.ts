@@ -166,7 +166,12 @@ console.log("INFERRED TRACK GENRES", {
     const safeFeatures = features ?? {}; // Prisma Json mag geen null in sommige schemas
 
 const track = await prisma.track.upsert({
-  where: { spotifyTrackId: trackId },
+  where: {
+    artistId_spotifyTrackId: {
+      artistId,
+      spotifyTrackId: trackId,
+    },
+  },
 
   update: {
     title,

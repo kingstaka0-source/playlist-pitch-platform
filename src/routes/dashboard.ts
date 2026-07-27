@@ -16,18 +16,25 @@ function startOfMonth() {
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
+function getArtistId(res: any): string {
+  return String(res.locals?.artist?.id || "").trim();
+}
+
 /**
  * GET /dashboard/stats
  * Shape afgestemd op frontend app/page.tsx
  */
-dashboard.get("/dashboard/stats", async (req, res) => {
+dashboard.get("/dashboard/stats", async (_req, res) => {
   try {
-    const artistId =
-      String(req.header("x-artist-id") || req.query.artistId || "").trim();
+    const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({ error: "Missing artistId" });
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
     }
+
+    // rest van de bestaande code...
 
     const monthStart = startOfMonth();
 
@@ -100,17 +107,19 @@ dashboard.get("/dashboard/stats", async (req, res) => {
 });
 
 /**
- * GET /dashboard/artist/:artistId/overview
  * Geeft:
  * - artist plan/trial
- * - legal status (accepted vs required)
- * - last 10 tracks + match counts + top matches
+ * - legal status
+ * - tracks + match counts + top matches
  */
-dashboard.get("/dashboard/artist/:artistId/overview", async (req, res) => {
+dashboard.get("/dashboard/overview", async (_req, res) => {
   try {
-    const artistId = String(req.params.artistId || "");
+    const artistId = getArtistId(res);
+
     if (!artistId) {
-      return res.status(400).json({ error: "Missing artistId" });
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
     }
 
     const artist = await prisma.artist.findUnique({

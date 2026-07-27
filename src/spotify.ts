@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getSpotifyAppAccessToken } from "./spotifyAppClient";
 
+
 async function spotifyGet<T>(url: string): Promise<T> {
   // 1) eerste poging
   let token = await getSpotifyAppAccessToken(false);
@@ -49,3 +50,5 @@ export async function getTrackAudioFeatures(_accessTokenIgnored: string, trackId
 export async function getTrackMeta(_accessTokenIgnored: string, trackId: string) {
   return spotifyGet<any>(`https://api.spotify.com/v1/tracks/${trackId}`);
 }
+
+

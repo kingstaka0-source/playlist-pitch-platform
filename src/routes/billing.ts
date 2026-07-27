@@ -4,21 +4,13 @@ import { stripe, STRIPE_PRICE_ID, FRONTEND_URL } from "../stripe";
 
 export const billing = Router();
 
-function getArtistId(req: any) {
-  const headerArtistId =
-    typeof req.headers?.["x-artist-id"] === "string"
-      ? req.headers["x-artist-id"]
-      : "";
-
-  const queryArtistId =
-    typeof req.query?.artistId === "string" ? req.query.artistId : "";
-
-  return String(headerArtistId || queryArtistId || "").trim();
+function getArtistId(res: any): string {
+  return String(res.locals?.artist?.id || "").trim();
 }
 
 billing.get("/status", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
       return res.status(400).json({ error: "MISSING_ARTIST_ID" });
@@ -59,7 +51,7 @@ billing.get("/status", async (req, res) => {
 
 billing.post("/create-checkout-session", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+   const artistId = getArtistId(res); 
 
     if (!artistId) {
       return res.status(400).json({ error: "MISSING_ARTIST_ID" });
@@ -142,7 +134,7 @@ billing.post("/create-checkout-session", async (req, res) => {
 
 billing.post("/create-portal-session", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
       return res.status(400).json({ error: "MISSING_ARTIST_ID" });
@@ -184,7 +176,7 @@ billing.post("/create-portal-session", async (req, res) => {
 
 billing.get("/access", async (req, res) => {
   try {
-    const artistId = getArtistId(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
       return res.status(400).json({ error: "MISSING_ARTIST_ID" });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { clerkMiddleware, getAuth } from "@clerk/express";
+import { getAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
 import { prisma } from "../db";
 
@@ -8,8 +8,6 @@ const router = Router();
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
 });
-
-router.use(clerkMiddleware());
 
 router.post("/bootstrap", async (req, res) => {
   try {
