@@ -136,8 +136,8 @@ app.post(
   stripeWebhookHandler
 );
 
-app.use(express.json({ limit: "1mb" }));
 app.use(clerkMiddleware());
+app.use(express.json({ limit: "1mb" }));
 app.get("/tracking/open/:pitchId", async (req, res) => {
   try {
     const pitchId = String(req.params.pitchId || "").trim();
@@ -230,6 +230,7 @@ console.log("ROUTES CHECK", {
   ai: !!ai,
 });
 
+app.use("/artists/me", requireCurrentArtist);
 app.use(artists);
 app.use(tracks);
 app.use(curators);

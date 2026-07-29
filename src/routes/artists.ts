@@ -158,13 +158,23 @@ artists.post("/artists/:id/spotify", async (req, res) => {
 /**
  * Usage endpoint
  */
-artists.get("/artists/:id/usage", async (req, res) => {
+artists.get("/artists/me/usage", async (_req, res) => {
   try {
-    const artistId = req.params.id;
+    const artistId = String(res.locals?.artist?.id || "").trim();
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+        message: "You must be signed in.",
+      });
+    }
+
     const usage = await getArtistUsage(artistId);
 
     if (!usage) {
-      return res.status(404).json({ error: "Artist not found" });
+      return res.status(404).json({
+        error: "Artist not found",
+      });
     }
 
     return res.json({
@@ -175,6 +185,7 @@ artists.get("/artists/:id/usage", async (req, res) => {
     });
   } catch (err: any) {
     console.error("USAGE ERROR", err?.message ?? err);
+
     return res.status(500).json({
       error: "usage failed",
       details: err?.message ?? String(err),
