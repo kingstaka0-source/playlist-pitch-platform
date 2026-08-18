@@ -77,12 +77,19 @@ intake.post("/intake/curator", async (req, res) => {
 /**
  * Track intake via Spotify URL/ID:
  * POST /intake/track
- * body: { artistId, spotifyTrackUrl } OR { artistId, spotifyTrackId }
+* body: { spotifyTrackUrl } OR { spotifyTrackId }
+* artistId komt uit de ingelogde Clerk-gebruiker.
  */
 intake.post("/intake/track", async (req, res) => {
   try {
-    const artistId = String(req.body?.artistId || "");
-    if (!artistId) return res.status(400).json({ error: "Missing artistId" });
+    const artistId = String(res.locals.artist?.id || "");
+
+if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+    message: "You must be signed in.",
+  });
+}
 
     const artist = await prisma.artist.findUnique({
   where: { id: artistId },

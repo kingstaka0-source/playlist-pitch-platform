@@ -35,30 +35,29 @@ model Artist {
 }
 
 model Track {
-  id              String   @id @default(cuid())
-  artistId        String
+  id             String   @id @default(cuid())
+  artistId       String
   spotifyTrackId String
-  spotifyAlbumId  String?
-  spotifyUrl      String?
-  title           String
-  artists         String[]
-  albumName       String?
-  albumImageUrl   String?
-  releaseDate     String?
-  isrc            String?
-  trackNumber     Int?
-  discNumber      Int?
-  explicit        Boolean  @default(false)
-  durationMs      Int
-  audioFeatures   Json
-  genres          String[]
-  createdAt       DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  matches         Match[]
-  artist          Artist   @relation(fields: [artistId], references: [id])
+  spotifyAlbumId String?
+  spotifyUrl     String?
+  title          String
+  artists        String[]
+  albumName      String?
+  albumImageUrl  String?
+  releaseDate    String?
+  isrc           String?
+  trackNumber    Int?
+  discNumber     Int?
+  explicit       Boolean  @default(false)
+  durationMs     Int
+  audioFeatures  Json
+  genres         String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+  matches        Match[]
+  artist         Artist   @relation(fields: [artistId], references: [id])
 
   @@unique([artistId, spotifyTrackId])
-
   @@index([artistId])
   @@index([isrc])
 }
@@ -126,12 +125,86 @@ model Match {
 }
 
 model CampaignHistory {
-  id              String   @id @default(cuid())
-  trackId         String
-  matchesCount    Int      @default(0)
-  placementsCount Int      @default(0)
-  successRate     Int      @default(0)
-  createdAt       DateTime @default(now())
+  id      String @id @default(cuid())
+  trackId String
+
+  // Bestaande velden behouden
+  matchesCount    Int @default(0)
+  placementsCount Int @default(0)
+  successRate     Int @default(0)
+
+  // Nieuwe velden
+  selectedPlaylists Int @default(0)
+  generatedPitches  Int @default(0)
+  emailsSent        Int @default(0)
+
+  skippedAlreadySent Int @default(0)
+  skippedNoEmail     Int @default(0)
+  skippedFakeEmail   Int @default(0)
+  failed             Int @default(0)
+
+  status String @default("COMPLETED")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  items  CampaignHistoryItem[]
+  events CampaignEvent[]
+}
+
+model CampaignHistoryItem {
+  id         String  @id @default(cuid())
+  campaignId String
+  matchId    String
+  pitchId    String?
+
+  createdAt DateTime @default(now())
+
+  campaign CampaignHistory @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  events   CampaignEvent[]
+
+  @@unique([campaignId, matchId])
+  @@index([campaignId])
+  @@index([matchId])
+  @@index([pitchId])
+}
+
+model CampaignEvent {
+  id String @id @default(cuid())
+
+  campaignId     String
+  campaignItemId String
+  pitchId        String?
+  matchId        String
+
+  type CampaignEventType
+
+  createdAt DateTime @default(now())
+
+  // Optionele informatie over het event.
+  metadata Json?
+
+  campaign     CampaignHistory     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignItem CampaignHistoryItem @relation(fields: [campaignItemId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([campaignItemId])
+  @@index([pitchId])
+  @@index([matchId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum CampaignEventType {
+  GENERATED
+  SENT
+  OPENED
+  CLICKED
+  REPLIED
+  INTERESTED
+  DECLINED
+  PLAYLISTED
+  SKIPPED_FAKE_EMAIL
 }
 
 model Pitch {

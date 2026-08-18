@@ -132,6 +132,66 @@ if (!artistId) {
 });
 
 /**
+ * Start Spotify OAuth from the authenticated frontend.
+ * POST /auth/spotify/start
+ */
+spotifyAuth.post("/auth/spotify/start", async (_req, res) => {
+  try {
+    const artistId = getArtistId(res);
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+        message: "You must be signed in.",
+      });
+    }
+
+    const artist = await prisma.artist.findUnique({
+      where: { id: artistId },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!artist) {
+      return res.status(404).json({
+        error: "ARTIST_NOT_FOUND",
+        message: "Your TuneReach artist profile could not be found.",
+      });
+    }
+
+    const state = createSpotifyState(artist.id);
+    const scope = ["user-read-email", "user-read-private"].join(" ");
+
+    const url =
+      "https://accounts.spotify.com/authorize?" +
+      new URLSearchParams({
+        response_type: "code",
+        client_id: CLIENT_ID,
+        scope,
+        redirect_uri: REDIRECT_URI,
+        state,
+        show_dialog: "true",
+      }).toString();
+
+    return res.json({
+      ok: true,
+      url,
+    });
+  } catch (error: any) {
+    console.error(
+      "SPOTIFY START ERROR",
+      error?.response?.data ?? error?.message ?? error,
+    );
+
+    return res.status(500).json({
+      error: "SPOTIFY_START_FAILED",
+      message: "Unable to start Spotify authorization.",
+    });
+  }
+});
+
+/**
  * Connection status
  * GET /auth/spotify/status?artistId=...
  */

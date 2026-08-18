@@ -30,9 +30,12 @@ import { followups } from "./routes/followups";
 import authRoutes from "./routes/auth";
 import { clerkMiddleware } from "@clerk/express";
 import { requireCurrentArtist } from "./auth/requireCurrentArtist";
+import campaigns from "./routes/campaigns";
 
 
 const app = express();
+
+app.use(clerkMiddleware());
 
 function logStartupConfig() {
   const emailFrom = String(process.env.EMAIL_FROM || "").trim();
@@ -138,33 +141,6 @@ app.post(
 
 app.use(clerkMiddleware());
 app.use(express.json({ limit: "1mb" }));
-app.get("/tracking/open/:pitchId", async (req, res) => {
-  try {
-    const pitchId = String(req.params.pitchId || "").trim();
-
-    if (pitchId) {
-      await prisma.pitch.update({
-        where: { id: pitchId },
-        data: {
-          openCount: { increment: 1 },
-          lastOpenedAt: new Date(),
-        },
-      });
-    }
-
-    const pixel = Buffer.from(
-      "R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
-      "base64"
-    );
-
-    res.setHeader("Content-Type", "image/gif");
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    return res.end(pixel);
-  } catch (err) {
-    console.error("TRACKING_OPEN_ERROR", err);
-    return res.status(204).end();
-  }
-});
 
 // Publieke route
 app.use(health);
@@ -250,8 +226,12 @@ app.use(spotifyDebug);
 
 app.use("/ai", requireCurrentArtist);
 app.use("/ai", ai);
+
 app.use(detection);
 app.use(followups);
+
+app.use("/campaigns", requireCurrentArtist);
+app.use("/campaigns", campaigns);
  
 
 console.log("AUTH ROUTES REGISTERED");
