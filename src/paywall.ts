@@ -1,35 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import { getArtistUsage } from "./routes/artists";
 
-function getArtistIdFromRequest(req: Request) {
-  const headerArtistId =
-    typeof req.headers?.["x-artist-id"] === "string"
-      ? req.headers["x-artist-id"]
-      : "";
-
-  const queryArtistId =
-    typeof req.query?.artistId === "string" ? req.query.artistId : "";
-
-  const bodyArtistId =
-    typeof (req.body as any)?.artistId === "string"
-      ? (req.body as any).artistId
-      : "";
-
-  const paramArtistId =
-    typeof req.params?.artistId === "string"
-      ? req.params.artistId
-      : typeof req.params?.id === "string"
-      ? req.params.id
-      : "";
-
-  return String(
-    headerArtistId || queryArtistId || bodyArtistId || paramArtistId || ""
-  ).trim();
+function getArtistId(res: Response): string {
+  return String(res.locals?.artist?.id || "").trim();
 }
 
 export async function attachUsage(req: Request, res: Response, next: NextFunction) {
   try {
-    const artistId = getArtistIdFromRequest(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
       return res.status(400).json({
@@ -65,7 +43,7 @@ export async function requirePaidPlan(
   next: NextFunction
 ) {
   try {
-    const artistId = getArtistIdFromRequest(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
       return res.status(400).json({
@@ -113,7 +91,7 @@ export async function requirePitchAllowance(
   next: NextFunction
 ) {
   try {
-    const artistId = getArtistIdFromRequest(req);
+    const artistId = getArtistId(res);
 
     if (!artistId) {
       return res.status(400).json({

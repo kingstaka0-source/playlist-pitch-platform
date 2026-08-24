@@ -13,28 +13,39 @@ billing.get("/status", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const artist = await prisma.artist.findUnique({
-      where: { id: artistId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        plan: true,
-        trialUntil: true,
-        stripeCustomerId: true,
-        stripeSubscriptionId: true,
-        subscriptionStatus: true,
-        currentPeriodEnd: true,
-        cancelAtPeriodEnd: true,
-      },
-    });
+  where: { id: artistId },
+  select: {
+    id: true,
+    email: true,
+    name: true,
+    plan: true,
+    subscriptionStatus: true,
+    stripeCustomerId: true,
+    stripeSubscriptionId: true,
+  },
+});
 
     if (!artist) {
       return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
     }
+
+    if (
+  artist.stripeSubscriptionId &&
+  ["TRIALING", "ACTIVE", "PAST_DUE", "INCOMPLETE"].includes(
+    artist.subscriptionStatus
+  )
+) {
+  return res.status(409).json({
+    error: "SUBSCRIPTION_ALREADY_EXISTS",
+    message: "Manage the existing subscription through the billing portal.",
+  });
+}
 
     return res.json({
       ok: true,
@@ -54,8 +65,10 @@ billing.post("/create-checkout-session", async (req, res) => {
    const artistId = getArtistId(res); 
 
     if (!artistId) {
-      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -137,8 +150,10 @@ billing.post("/create-portal-session", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -179,8 +194,10 @@ billing.get("/access", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-      return res.status(400).json({ error: "MISSING_ARTIST_ID" });
-    }
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },

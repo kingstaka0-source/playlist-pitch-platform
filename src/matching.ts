@@ -329,51 +329,84 @@ function genreAffinityScore(track: any, playlist: any) {
   }
 
   if (trackGenres.length && !playlistGenres.length) {
-    return -4;
+    return -8;
   }
 
   const trackSet = new Set(trackGenres);
   const playlistSet = new Set(playlistGenres);
 
-  const overlap = [...trackSet].filter((g) => playlistSet.has(g));
-  const overlapCount = overlap.length;
+  let exactOverlap = 0;
+  let relatedOverlap = 0;
+
+  for (const tg of trackGenres) {
+    if (playlistSet.has(tg)) {
+      exactOverlap += 1;
+      continue;
+    }
+
+    const related = GENRE_RELATIONS[tg] || [];
+
+    for (const pg of playlistGenres) {
+      if (related.includes(pg)) {
+        relatedOverlap += 1;
+        break;
+      }
+    }
+  }
 
   let score = 0;
 
-  if (overlapCount >= 3) score += 18;
-  else if (overlapCount === 2) score += 12;
-  else if (overlapCount === 1) score += 7;
-
-  const majorTrackGenres = trackGenres.slice(0, 3);
-
-  const strongMismatchGenres = playlistGenres.filter(
-    (g) =>
-      !trackSet.has(g) &&
-      [
-        "techno",
-        "house",
-        "electronic",
-        "edm",
-        "rock",
-        "classical",
-        "opera",
-      ].includes(g)
-  );
-
-  if (strongMismatchGenres.length >= 1 && overlapCount === 0) {
-    score -= 12;
+  if (exactOverlap >= 3) {
+    score += 24;
+  } else if (exactOverlap === 2) {
+    score += 18;
+  } else if (exactOverlap === 1) {
+    score += 12;
   }
 
-  if (playlistGenres.length >= 5 && overlapCount <= 1) {
-    score -= 7;
+  if (relatedOverlap >= 2) {
+    score += 10;
+  } else if (relatedOverlap === 1) {
+    score += 5;
+  }
+
+  const totalAffinity = exactOverlap + relatedOverlap;
+
+  const strongMismatchGenres = [
+    "techno",
+    "house",
+    "electronic",
+    "edm",
+    "rock",
+    "classical",
+    "opera",
+    "hiphop",
+    "rap",
+    "trap",
+    "drill",
+    "boom-bap",
+    "boom bap",
+  ];
+
+  const mismatchCount = playlistGenres.filter(
+    (genre) =>
+      strongMismatchGenres.includes(genre) &&
+      !trackSet.has(genre),
+  ).length;
+
+  if (totalAffinity === 0 && mismatchCount > 0) {
+    score -= 35;
+  }
+
+  if (totalAffinity === 0 && playlistGenres.length > 0) {
+    score -= 22;
   }
 
   if (
-    majorTrackGenres.length > 0 &&
-    overlapCount === 0 &&
-    playlistGenres.length > 0
+    playlistGenres.length >= 5 &&
+    totalAffinity <= 1
   ) {
-    score -= 9;
+    score -= 8;
   }
 
   return score;
@@ -471,15 +504,43 @@ function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
   const centroid = buildPlaylistCentroid(playlist);
   const baseCosine = cosine(vec, centroid);
 
-  let score = 28 + baseCosine * 42;
+  const genreScore = genreAffinityScore(track, playlist);
 
-  score -= penaltyForRules(vec, playlist);
-  score -= textMismatchPenalty(playlist);
-  score -= genericTitlePenalty(String(playlist?.name ?? ""));
-  score -= genericDiscoveryPenalty(track, playlist);
-  score += specificityBonus(playlist);
-  score += genreAffinityScore(track, playlist);
-  score += contactabilityBonus(playlist);
+  const rulePenalty = penaltyForRules(vec, playlist);
+  const mismatchPenalty = textMismatchPenalty(playlist);
+  const titlePenalty = genericTitlePenalty(
+    String(playlist?.name ?? ""),
+  );
+  const discoveryPenalty = genericDiscoveryPenalty(
+    track,
+    playlist,
+  );
+
+  // Keep non-musical bonuses useful, but prevent them
+  // from overpowering actual musical relevance.
+  const specificity = Math.min(
+    6,
+    specificityBonus(playlist),
+  );
+
+  const contactability = Math.min(
+    8,
+    contactabilityBonus(playlist),
+  );
+
+  // Musical similarity provides the foundation.
+  // Genre relevance should be the strongest differentiator.
+  let score =
+    20 +
+    baseCosine * 35 +
+    genreScore +
+    specificity +
+    contactability;
+
+  score -= rulePenalty;
+  score -= mismatchPenalty;
+  score -= titlePenalty;
+  score -= discoveryPenalty;
 
   score = Math.round(score);
   score = Math.max(0, Math.min(99, score));
@@ -497,6 +558,12 @@ type RankedMatch = {
 };
 
 function compareRankedMatches(a: RankedMatch, b: RankedMatch) {
+  // Musical relevance first
+  if (a.score !== b.score) {
+    return b.score - a.score;
+  }
+
+  // Then prefer playlists that can actually be contacted
   if (a.sendable !== b.sendable) {
     return a.sendable ? -1 : 1;
   }
@@ -507,10 +574,6 @@ function compareRankedMatches(a: RankedMatch, b: RankedMatch) {
 
   if (a.contactConfidence !== b.contactConfidence) {
     return b.contactConfidence - a.contactConfidence;
-  }
-
-  if (a.score !== b.score) {
-    return b.score - a.score;
   }
 
   return a.playlistId.localeCompare(b.playlistId);
@@ -525,7 +588,7 @@ export async function computeMatches(trackId: string) {
 
   const vec = buildTrackVector(track);
 
-  const playlists = await prisma.playlist.findMany({
+    const playlists = await prisma.playlist.findMany({
     include: {
       curator: true,
     },
@@ -542,54 +605,25 @@ export async function computeMatches(trackId: string) {
     getTrackGenreProfile(track)
   );
 
-  const scored = playlists.map((pl): RankedMatch | null => {
-    let score = computeFinalScore(track, pl, vec);
+  const scored = playlists.map(
+  (pl, index): RankedMatch | null => {
+    if (index % 250 === 0) {
+      console.log(
+        `MATCHING PROGRESS ${index}/${playlists.length}`,
+        pl.name,
+      );
+    }
+
+    const score = computeFinalScore(track, pl, vec);
+
     const canEmail = getSendableEmailState(pl);
-    const contactConfidence = Number(pl?.curator?.contactConfidence ?? 0);
-    const hasSubmissionUrl = !!pl?.curator?.submissionUrl;
 
-    const playlistGenres = (pl.genres || []).map((g) =>
-  String(g).toLowerCase()
-);
+    const contactConfidence = Number(
+      pl?.curator?.contactConfidence ?? 0,
+    );
 
-const trackGenres = (track.genres || []).map((g) =>
-  String(g).toLowerCase()
-);
-
-const normalizedTrackGenres = trackGenres.map((g) =>
-  g.toLowerCase()
-);
-
-const normalizedPlaylistGenres = playlistGenres.map((g) =>
-  g.toLowerCase()
-);
-
-let genreOverlap = 0;
-
-for (const tg of normalizedTrackGenres) {
-  for (const pg of normalizedPlaylistGenres) {
-    if (tg.includes(pg) || pg.includes(tg)) {
-      genreOverlap += 1;
-      continue;
-    }
-
-    const related = GENRE_RELATIONS[tg] || [];
-
-    if (related.includes(pg)) {
-      genreOverlap += 0.35;
-    }
-  }
-}
-
-if (normalizedTrackGenres.length > 0 && normalizedPlaylistGenres.length > 0) {
-  if (genreOverlap > 0) {
-    score += Math.round(genreOverlap * 30);
-  } else {
-    score -= 20;
-  }
-} else {
-  score -= 10;
-}
+    const hasSubmissionUrl =
+      !!pl?.curator?.submissionUrl;
 
     const explanationParts = [
       `Tempo ~${Math.round(vec[3] * 200)} BPM`,
@@ -606,30 +640,53 @@ if (normalizedTrackGenres.length > 0 && normalizedPlaylistGenres.length > 0) {
       contactConfidence,
       hasSubmissionUrl,
     };
-  });
+  },
+);
 
-  const top = scored
+console.log("MATCHING STEP 1: scoring finished", {
+  scored: scored.length,
+});
+
+const top = scored
   .filter((t): t is RankedMatch => t !== null)
   .filter((t) => t.score >= 40)
   .sort(compareRankedMatches)
   .slice(0, 50);
 
-  const created = await Promise.all(
-    top.map((t) =>
-      prisma.match.upsert({
-        where: { trackId_playlistId: { trackId, playlistId: t.playlistId } },
-        update: { fitScore: t.score, explanation: t.explanation },
-        create: {
+console.log("MATCHING STEP 2: top selected", {
+  top: top.length,
+});
+
+console.log("MATCHING STEP 3: starting database upserts");
+
+const created = await Promise.all(
+  top.map((t) =>
+    prisma.match.upsert({
+      where: {
+        trackId_playlistId: {
           trackId,
           playlistId: t.playlistId,
-          fitScore: t.score,
-          explanation: t.explanation,
         },
-      })
-    )
-  );
+      },
+      update: {
+        fitScore: t.score,
+        explanation: t.explanation,
+      },
+      create: {
+        trackId,
+        playlistId: t.playlistId,
+        fitScore: t.score,
+        explanation: t.explanation,
+      },
+    }),
+  ),
+);
 
-  return created;
+console.log("MATCHING STEP 4: database upserts finished", {
+  created: created.length,
+});
+
+return created;
 }
 
 export async function triggerMatchesForTrack(trackId: string) {

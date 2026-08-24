@@ -50,6 +50,9 @@ matches.get("/matches", async (req, res) => {
     },
   },
   
+  orderBy: {
+  fitScore: "desc",
+ },
 });
 
 const ranked = list
@@ -81,7 +84,16 @@ const ranked = list
       smartScore,
     };
   })
-  .sort((a, b) => b.smartScore - a.smartScore);
+  .sort((a, b) => {
+    const fitDifference =
+      (b.fitScore || 0) - (a.fitScore || 0);
+
+    if (fitDifference !== 0) {
+      return fitDifference;
+    }
+
+    return b.smartScore - a.smartScore;
+  });
 
     const results = ranked.map((m) => {
       const curator = m.playlist?.curator;

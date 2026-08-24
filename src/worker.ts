@@ -17,7 +17,7 @@
   // --- instellingen (FASE 1) ---
   const POLL_MS = 750;          // ✅ 500–1000ms
   const WATCHDOG_EVERY_MS = 60_000; // ✅ 60s
-  const STALE_RUNNING_MS = 120_000; // ✅ 2 min
+  const STALE_RUNNING_MS = 15 * 60_000; // ✅ 2 min
 
   // Worker id voor locking / logs
   const workerId = `worker_${randomUUID().slice(0, 8)}`;

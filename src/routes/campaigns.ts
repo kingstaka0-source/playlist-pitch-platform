@@ -12,6 +12,7 @@ function buildCampaignPayload(
   track: any,
   matchById: Map<string, any>,
   pitchById: Map<string, any>,
+  events: any[] = [],
 ) {
   const campaignPitches = campaign.items.flatMap((item: any) => {
     if (!item.pitchId) return [];
@@ -21,53 +22,65 @@ function buildCampaignPayload(
     return pitch ? [pitch] : [];
   });
 
-  const sentPitches = campaignPitches.filter(
-    (pitch: any) => pitch.sentAt !== null,
-  );
+  const sentEvents = events.filter(
+  (event: any) => event.type === "SENT",
+);
 
-  const sentCount = sentPitches.length;
+const openedEvents = events.filter(
+  (event: any) => event.type === "OPENED",
+);
 
-  const opens = campaignPitches.reduce(
-    (total: number, pitch: any) =>
-      total + (pitch.openCount ?? 0),
-    0,
-  );
+const clickedEvents = events.filter(
+  (event: any) => event.type === "CLICKED",
+);
 
-  const clicks = campaignPitches.reduce(
-    (total: number, pitch: any) =>
-      total + (pitch.clickCount ?? 0),
-    0,
-  );
+const repliedEvents = events.filter(
+  (event: any) => event.type === "REPLIED",
+);
 
-  const replies = campaignPitches.reduce(
-    (total: number, pitch: any) =>
-      total + (pitch.replyCount ?? 0),
-    0,
-  );
+const sentCount = new Set(
+  sentEvents.map((event: any) => event.campaignItemId),
+).size;
 
-  const interestedCurators = campaignPitches.filter(
-    (pitch: any) => pitch.positiveReply === true,
-  ).length;
+const opens = openedEvents.length;
+const clicks = clickedEvents.length;
+const replies = repliedEvents.length;
 
-  const negativeReplies = campaignPitches.filter(
-    (pitch: any) => pitch.negativeReply === true,
-  ).length;
+  const interestedEvents = events.filter(
+  (event: any) => event.type === "INTERESTED",
+);
 
-  const placements = campaignPitches.filter(
-    (pitch: any) => pitch.playlistDetected === true,
-  ).length;
+const declinedEvents = events.filter(
+  (event: any) => event.type === "DECLINED",
+);
 
-  const uniqueOpened = campaignPitches.filter(
-    (pitch: any) => (pitch.openCount ?? 0) > 0,
-  ).length;
+const playlistedEvents = events.filter(
+  (event: any) => event.type === "PLAYLISTED",
+);
 
-  const uniqueClicked = campaignPitches.filter(
-    (pitch: any) => (pitch.clickCount ?? 0) > 0,
-  ).length;
+const interestedCurators = new Set(
+  interestedEvents.map((event: any) => event.campaignItemId),
+).size;
 
-  const uniqueReplied = campaignPitches.filter(
-    (pitch: any) => (pitch.replyCount ?? 0) > 0,
-  ).length;
+const negativeReplies = new Set(
+  declinedEvents.map((event: any) => event.campaignItemId),
+).size;
+
+const placements = new Set(
+  playlistedEvents.map((event: any) => event.campaignItemId),
+).size;
+
+  const uniqueOpened = new Set(
+  openedEvents.map((event: any) => event.campaignItemId),
+).size;
+
+const uniqueClicked = new Set(
+  clickedEvents.map((event: any) => event.campaignItemId),
+).size;
+
+const uniqueReplied = new Set(
+  repliedEvents.map((event: any) => event.campaignItemId),
+).size;
 
   const openRate =
     sentCount > 0
@@ -295,6 +308,38 @@ router.get("/", async (_req, res) => {
         },
       });
 
+      const campaignIds = histories.map(
+  (campaign) => campaign.id,
+);
+
+const campaignEvents =
+  campaignIds.length > 0
+    ? await prisma.campaignEvent.findMany({
+        where: {
+          campaignId: {
+            in: campaignIds,
+          },
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      })
+    : [];
+
+const eventsByCampaignId = new Map<string, any[]>();
+
+for (const event of campaignEvents) {
+  const existing =
+    eventsByCampaignId.get(event.campaignId) || [];
+
+  existing.push(event);
+
+  eventsByCampaignId.set(
+    event.campaignId,
+    existing,
+  );
+}
+
     const matchIds = Array.from(
       new Set(
         histories.flatMap((campaign) =>
@@ -391,14 +436,15 @@ router.get("/", async (_req, res) => {
     );
 
     const campaigns = histories.map(
-      (campaign) =>
-        buildCampaignPayload(
-          campaign,
-          trackById.get(campaign.trackId),
-          matchById,
-          pitchById,
-        ),
-    );
+  (campaign) =>
+    buildCampaignPayload(
+      campaign,
+      trackById.get(campaign.trackId),
+      matchById,
+      pitchById,
+      eventsByCampaignId.get(campaign.id) || [],
+    ),
+);
 
     return res.json({
       ok: true,
@@ -594,6 +640,7 @@ const result = buildCampaignPayload(
   track,
   matchById,
   pitchById,
+  events,
 );
 
 return res.json({
@@ -616,5 +663,310 @@ return res.json({
     });
   }
 });
+
+router.post(
+  "/:id/items/:campaignItemId/reply",
+  async (req, res) => {
+    try {
+      const artistId = getArtistId(res);
+
+      const campaignId = String(
+        req.params.id || "",
+      ).trim();
+
+      const campaignItemId = String(
+        req.params.campaignItemId || "",
+      ).trim();
+
+      const status = String(
+        req.body?.status || "",
+      )
+        .trim()
+        .toUpperCase();
+
+      if (!artistId) {
+        return res.status(401).json({
+          error: "UNAUTHORIZED",
+        });
+      }
+
+      if (
+        status !== "INTERESTED" &&
+        status !== "DECLINED"
+      ) {
+        return res.status(400).json({
+          error: "INVALID_REPLY_STATUS",
+          allowed: [
+            "INTERESTED",
+            "DECLINED",
+          ],
+        });
+      }
+
+      const campaign =
+        await prisma.campaignHistory.findFirst({
+          where: {
+            id: campaignId,
+            trackId: {
+              in: (
+                await prisma.track.findMany({
+                  where: {
+                    artistId,
+                  },
+                  select: {
+                    id: true,
+                  },
+                })
+              ).map((track) => track.id),
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (!campaign) {
+        return res.status(404).json({
+          error: "CAMPAIGN_NOT_FOUND",
+        });
+      }
+
+      const campaignItem =
+        await prisma.campaignHistoryItem.findFirst({
+          where: {
+            id: campaignItemId,
+            campaignId,
+          },
+        });
+
+      if (!campaignItem) {
+        return res.status(404).json({
+          error: "CAMPAIGN_ITEM_NOT_FOUND",
+        });
+      }
+
+      if (!campaignItem.pitchId) {
+        return res.status(400).json({
+          error: "CAMPAIGN_ITEM_HAS_NO_PITCH",
+        });
+      }
+
+      const repliedAt = new Date();
+
+      await prisma.pitch.update({
+        where: {
+          id: campaignItem.pitchId,
+        },
+        data: {
+          replyCount: {
+            increment: 1,
+          },
+
+          lastRepliedAt: repliedAt,
+
+          positiveReply:
+            status === "INTERESTED",
+
+          negativeReply:
+            status === "DECLINED",
+        },
+      });
+
+      await prisma.campaignEvent.create({
+        data: {
+          campaignId,
+          campaignItemId,
+
+          pitchId:
+            campaignItem.pitchId,
+
+          matchId:
+            campaignItem.matchId,
+
+          type: "REPLIED",
+
+          createdAt: repliedAt,
+
+          metadata: {
+            status,
+          },
+        },
+      });
+
+      await prisma.campaignEvent.create({
+        data: {
+          campaignId,
+          campaignItemId,
+
+          pitchId:
+            campaignItem.pitchId,
+
+          matchId:
+            campaignItem.matchId,
+
+          type:
+            status === "INTERESTED"
+              ? "INTERESTED"
+              : "DECLINED",
+
+          createdAt: repliedAt,
+
+          metadata: {
+            status,
+          },
+        },
+      });
+
+      return res.json({
+        ok: true,
+        campaignId,
+        campaignItemId,
+        status,
+      });
+    } catch (error: any) {
+      console.error(
+        "CAMPAIGN_REPLY_ERROR",
+        error?.message ?? error,
+      );
+
+      return res.status(500).json({
+        error: "CAMPAIGN_REPLY_FAILED",
+        message:
+          error?.message ?? String(error),
+      });
+    }
+  },
+);
+
+router.post(
+  "/:id/items/:campaignItemId/playlist",
+  async (req, res) => {
+    try {
+      const artistId = getArtistId(res);
+
+      const campaignId = String(
+        req.params.id || "",
+      ).trim();
+
+      const campaignItemId = String(
+        req.params.campaignItemId || "",
+      ).trim();
+
+      if (!artistId) {
+        return res.status(401).json({
+          error: "UNAUTHORIZED",
+        });
+      }
+
+      const trackIds = (
+        await prisma.track.findMany({
+          where: {
+            artistId,
+          },
+          select: {
+            id: true,
+          },
+        })
+      ).map((track) => track.id);
+
+      const campaign =
+        await prisma.campaignHistory.findFirst({
+          where: {
+            id: campaignId,
+            trackId: {
+              in: trackIds,
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (!campaign) {
+        return res.status(404).json({
+          error: "CAMPAIGN_NOT_FOUND",
+        });
+      }
+
+      const campaignItem =
+        await prisma.campaignHistoryItem.findFirst({
+          where: {
+            id: campaignItemId,
+            campaignId,
+          },
+        });
+
+      if (!campaignItem) {
+        return res.status(404).json({
+          error: "CAMPAIGN_ITEM_NOT_FOUND",
+        });
+      }
+
+      if (!campaignItem.pitchId) {
+        return res.status(400).json({
+          error: "CAMPAIGN_ITEM_HAS_NO_PITCH",
+        });
+      }
+
+      const playlistedAt = new Date();
+
+      await prisma.pitch.update({
+        where: {
+          id: campaignItem.pitchId,
+        },
+        data: {
+          playlistDetected: true,
+          playlistedAt,
+        },
+      });
+
+      const existingEvent =
+        await prisma.campaignEvent.findFirst({
+          where: {
+            campaignId,
+            campaignItemId,
+            type: "PLAYLISTED",
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (!existingEvent) {
+        await prisma.campaignEvent.create({
+          data: {
+            campaignId,
+            campaignItemId,
+            pitchId: campaignItem.pitchId,
+            matchId: campaignItem.matchId,
+            type: "PLAYLISTED",
+            createdAt: playlistedAt,
+            metadata: {
+              source: "manual",
+            },
+          },
+        });
+      }
+
+      return res.json({
+        ok: true,
+        campaignId,
+        campaignItemId,
+        playlistedAt,
+      });
+    } catch (error: any) {
+      console.error(
+        "CAMPAIGN_PLAYLISTED_ERROR",
+        error?.message ?? error,
+      );
+
+      return res.status(500).json({
+        error: "CAMPAIGN_PLAYLISTED_FAILED",
+        message:
+          error?.message ?? String(error),
+      });
+    }
+  },
+);
 
 export default router;

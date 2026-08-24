@@ -22,7 +22,6 @@ import { matchJobs } from "./routes/matchJobs";
 import { requireLegal } from "./legalGate";
 import { spotifyDebug } from "./routes/spotifyDebug";
 import ai from "./routes/ai";
-import "./worker";
 import { detection } from "./routes/detection";
 import { tracking } from "./routes/tracking";
 import { clickTracking } from "./routes/clickTracking";
