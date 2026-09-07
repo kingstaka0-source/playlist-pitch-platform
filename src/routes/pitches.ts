@@ -571,13 +571,35 @@ const htmlBody = `
 
 
 
-await resend.emails.send({
+const emailResult = await resend.emails.send({
   from,
   to,
   subject: pitch.subject || `Track suggestion: ${track.title}`,
   text: finalBody.trim(),
   html: htmlBody,
 });
+
+console.log("RESEND EMAIL RESULT:", {
+  pitchId: pitch.id,
+  from,
+  to,
+  data: emailResult.data,
+  error: emailResult.error,
+});
+
+if (emailResult.error) {
+  throw new Error(
+    `Resend failed: ${
+      emailResult.error.message || JSON.stringify(emailResult.error)
+    }`
+  );
+}
+
+if (!emailResult.data?.id) {
+  throw new Error(
+    "Resend did not return an email id. Pitch will not be marked as SENT."
+  );
+}
 
     const updated = await prisma.pitch.update({
   where: { id: pitch.id },
@@ -969,23 +991,37 @@ ${
     // SEND EMAIL
     // ===================================
 
-    const emailResult =
-      await resend.emails.send({
-        from,
-        to,
-        subject:
-          pitch.subject ||
-          `Track suggestion: ${track.title}`,
-        text: finalBody,
-        html: htmlBody,
-      });
+    const emailResult = await resend.emails.send({
+  from,
+  to,
+  subject: pitch.subject || `Track suggestion: ${track.title}`,
+  text: finalBody.trim(),
+  html: htmlBody,
+});
 
-    if ((emailResult as any)?.error) {
-      throw new Error(
-        (emailResult as any).error?.message ||
-          "Resend failed to send email",
-      );
-    }
+console.log("RESEND CAMPAIGN EMAIL RESULT:", {
+  campaignId: campaignHistory.id,
+  pitchId: pitch.id,
+  matchId: match.id,
+  from,
+  to,
+  data: emailResult.data,
+  error: emailResult.error,
+});
+
+if (emailResult.error) {
+  throw new Error(
+    `Resend failed: ${
+      emailResult.error.message || JSON.stringify(emailResult.error)
+    }`
+  );
+}
+
+if (!emailResult.data?.id) {
+  throw new Error(
+    "Resend did not return an email id. Pitch will not be marked as SENT."
+  );
+}
 
     const sentAt =
       pitch.sentAt ?? new Date();

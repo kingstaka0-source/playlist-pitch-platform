@@ -182,28 +182,40 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     // ======================
     let savedPitch;
 
-    if (match.pitch) {
-      savedPitch = await prisma.pitch.update({
-        where: { id: match.pitch.id },
-        data: {
-          subject,
-          body,
-          channel,
-          status: "DRAFT",
-        },
-      });
-    } else {
-      savedPitch = await prisma.pitch.create({
-        data: {
-          matchId: match.id,
-          subject,
-          body,
-          status: "DRAFT",
-          channel,
-          sentTo: match.playlist?.curator?.email || null,
-        },
-      });
-    }
+if (match.pitch) {
+  if (
+    match.pitch.status === "SENT" ||
+    match.pitch.sentAt
+  ) {
+    return res.status(409).json({
+      error: "PITCH_ALREADY_SENT",
+      message:
+        "This pitch has already been sent and cannot be regenerated.",
+      pitch: match.pitch,
+    });
+  }
+
+  savedPitch = await prisma.pitch.update({
+    where: { id: match.pitch.id },
+    data: {
+      subject,
+      body,
+      channel,
+      status: "DRAFT",
+    },
+  });
+} else {
+  savedPitch = await prisma.pitch.create({
+    data: {
+      matchId: match.id,
+      subject,
+      body,
+      status: "DRAFT",
+      channel,
+      sentTo: match.playlist?.curator?.email || null,
+    },
+  });
+}
 
     return res.json({ ok: true, pitch: savedPitch });
   } catch (error) {
