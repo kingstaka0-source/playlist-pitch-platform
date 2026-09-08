@@ -13,39 +13,27 @@ billing.get("/status", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const artist = await prisma.artist.findUnique({
-  where: { id: artistId },
-  select: {
-    id: true,
-    email: true,
-    name: true,
-    plan: true,
-    subscriptionStatus: true,
-    stripeCustomerId: true,
-    stripeSubscriptionId: true,
-  },
-});
+      where: { id: artistId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        plan: true,
+        subscriptionStatus: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+      },
+    });
 
     if (!artist) {
       return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
     }
-
-    if (
-  artist.stripeSubscriptionId &&
-  ["TRIALING", "ACTIVE", "PAST_DUE", "INCOMPLETE"].includes(
-    artist.subscriptionStatus
-  )
-) {
-  return res.status(409).json({
-    error: "SUBSCRIPTION_ALREADY_EXISTS",
-    message: "Manage the existing subscription through the billing portal.",
-  });
-}
 
     return res.json({
       ok: true,
@@ -62,13 +50,13 @@ billing.get("/status", async (req, res) => {
 
 billing.post("/create-checkout-session", async (req, res) => {
   try {
-   const artistId = getArtistId(res); 
+    const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -77,11 +65,26 @@ billing.post("/create-checkout-session", async (req, res) => {
         email: true,
         name: true,
         stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        subscriptionStatus: true,
       },
     });
 
     if (!artist) {
       return res.status(404).json({ error: "ARTIST_NOT_FOUND" });
+    }
+
+    if (
+      artist.stripeSubscriptionId &&
+      ["TRIALING", "ACTIVE", "PAST_DUE", "INCOMPLETE"].includes(
+        artist.subscriptionStatus
+      )
+    ) {
+      return res.status(409).json({
+        error: "SUBSCRIPTION_ALREADY_EXISTS",
+        message:
+          "An existing subscription already exists. Manage it through the billing portal.",
+      });
     }
 
     let customerId = artist.stripeCustomerId || null;
@@ -106,30 +109,30 @@ billing.post("/create-checkout-session", async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-  mode: "subscription",
-  customer: customerId,
-  client_reference_id: artist.id,
-  line_items: [
-    {
-      price: STRIPE_PRICE_ID,
-      quantity: 1,
-    },
-  ],
-  success_url: `${FRONTEND_URL}/upgrade?success=1`,
-  cancel_url: `${FRONTEND_URL}/pricing?canceled=1`,
-  allow_promotion_codes: true,
-  metadata: {
-    artistId: artist.id,
-    plan: "PRO",
-  },
-  subscription_data: {
-    trial_period_days: 7,
-    metadata: {
-      artistId: artist.id,
-      plan: "PRO",
-    },
-  },
-});
+      mode: "subscription",
+      customer: customerId,
+      client_reference_id: artist.id,
+      line_items: [
+        {
+          price: STRIPE_PRICE_ID,
+          quantity: 1,
+        },
+      ],
+      success_url: `${FRONTEND_URL}/upgrade?success=1`,
+      cancel_url: `${FRONTEND_URL}/pricing?canceled=1`,
+      allow_promotion_codes: true,
+      metadata: {
+        artistId: artist.id,
+        plan: "PRO",
+      },
+      subscription_data: {
+        trial_period_days: 7,
+        metadata: {
+          artistId: artist.id,
+          plan: "PRO",
+        },
+      },
+    });
 
     return res.json({
       ok: true,
@@ -150,10 +153,10 @@ billing.post("/create-portal-session", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -194,10 +197,10 @@ billing.get("/access", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -229,7 +232,20 @@ billing.get("/access", async (req, res) => {
       },
     });
 
-    const isPaid = artist.plan === "TRIAL" || artist.plan === "PRO";
+    const now = new Date();
+
+    const trialActive =
+      artist.plan === "TRIAL" &&
+      !!artist.trialUntil &&
+      artist.trialUntil > now;
+
+    const proActive =
+      artist.plan === "PRO" &&
+      ["ACTIVE", "PAST_DUE"].includes(
+        artist.subscriptionStatus
+      );
+
+    const isPaid = trialActive || proActive;
     const freeLimit = 3;
     const remaining = isPaid ? null : Math.max(0, freeLimit - createdThisMonth);
 

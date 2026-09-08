@@ -29,21 +29,48 @@ function startOfCurrentMonthUtc() {
  * Voor Stripe-trials zal webhook leidend zijn, maar deze fallback mag blijven.
  */
 export async function normalizeArtistPlan(artistId: string) {
-  const artist = await prisma.artist.findUnique({ where: { id: artistId } });
+  const artist = await prisma.artist.findUnique({
+    where: { id: artistId },
+  });
+
   if (!artist) return null;
 
-  if (
-    artist.plan === "TRIAL" &&
-    artist.trialUntil &&
-    artist.trialUntil.getTime() < Date.now()
-  ) {
-    return await prisma.artist.update({
-      where: { id: artistId },
-      data: {
-        plan: "FREE",
-        trialUntil: null,
-      },
-    });
+  const now = Date.now();
+
+  // Een TRIAL is alleen geldig als er daadwerkelijk
+  // een toekomstige trialUntil-datum bestaat.
+  if (artist.plan === "TRIAL") {
+    const trialIsActive =
+      !!artist.trialUntil &&
+      artist.trialUntil.getTime() > now;
+
+    if (!trialIsActive) {
+      return await prisma.artist.update({
+        where: { id: artistId },
+        data: {
+          plan: "FREE",
+          trialUntil: null,
+        },
+      });
+    }
+  }
+
+  // PRO-toegang is alleen geldig voor een Stripe-subscription
+  // die ACTIVE of voorlopig PAST_DUE is.
+  if (artist.plan === "PRO") {
+    const proIsActive = ["ACTIVE", "PAST_DUE"].includes(
+      artist.subscriptionStatus
+    );
+
+    if (!proIsActive) {
+      return await prisma.artist.update({
+        where: { id: artistId },
+        data: {
+          plan: "FREE",
+          trialUntil: null,
+        },
+      });
+    }
   }
 
   return artist;

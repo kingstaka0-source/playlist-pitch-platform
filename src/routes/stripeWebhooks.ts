@@ -36,12 +36,13 @@ function mapStripeStatusToAppStatus(status?: string | null): AppSubscriptionStat
 }
 
 function mapStripeStatusToPlan(status?: string | null): AppPlan {
-  if (status === "trialing") return "TRIAL";
+  if (status === "trialing") {
+    return "TRIAL";
+  }
 
   if (
     status === "active" ||
-    status === "past_due" ||
-    status === "incomplete"
+    status === "past_due"
   ) {
     return "PRO";
   }
