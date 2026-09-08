@@ -1313,7 +1313,7 @@ console.log("FROM:", from);
 console.log("SUBJECT:", pitch.subject);
 console.log("===========================");
 
-        await resend.emails.send({
+                const emailResult = await resend.emails.send({
           from,
           to,
           subject: pitch.subject || `Track suggestion: ${track.title}`,
@@ -1321,14 +1321,38 @@ console.log("===========================");
           html: htmlBody,
         });
 
+        console.log("RESEND SEND-ALL EMAIL RESULT:", {
+          pitchId: pitch.id,
+          from,
+          to,
+          data: emailResult.data,
+          error: emailResult.error,
+        });
+
+        if (emailResult.error) {
+          throw new Error(
+            `Resend failed: ${
+              emailResult.error.message ||
+              JSON.stringify(emailResult.error)
+            }`
+          );
+        }
+
+        if (!emailResult.data?.id) {
+          throw new Error(
+            "Resend did not return an email id. Pitch will not be marked as SENT."
+          );
+        }
+
         await prisma.pitch.update({
-  where: { id: pitch.id },
-  data: {
-    status: "SENT",
-    sentAt: pitch.sentAt ?? new Date(),
-    sentTo: to,
-  },
-});
+          where: { id: pitch.id },
+          data: {
+            status: "SENT",
+            sentAt: pitch.sentAt ?? new Date(),
+            sentTo: to,
+          },
+        });
+        
         sent++;
       } catch (error) {
         console.error("SEND_ALL_SINGLE_EMAIL_FAILED", pitch.id, error);
