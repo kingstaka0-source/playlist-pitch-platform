@@ -25,9 +25,12 @@ billing.get("/status", async (req, res) => {
         email: true,
         name: true,
         plan: true,
+        trialUntil: true,
         subscriptionStatus: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
+        currentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
       },
     });
 
