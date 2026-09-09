@@ -5,6 +5,14 @@ export const followups = Router();
 
 followups.get("/followups", async (_req, res) => {
   try {
+    const artistId = String(res.locals?.artist?.id || "").trim();
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -18,6 +26,11 @@ followups.get("/followups", async (_req, res) => {
         followUpSent: false,
         lastOpenedAt: {
           lte: sevenDaysAgo,
+        },
+        match: {
+          track: {
+            artistId,
+          },
         },
       },
       include: {
@@ -72,6 +85,7 @@ followups.get("/followups", async (_req, res) => {
     });
   } catch (error: any) {
     console.error("FOLLOWUPS_LIST_ERROR", error?.message ?? error);
+
     return res.status(500).json({
       error: "FOLLOWUPS_LIST_FAILED",
       message: error?.message ?? String(error),
@@ -82,9 +96,38 @@ followups.get("/followups", async (_req, res) => {
 followups.post("/followups/:id/mark-sent", async (req, res) => {
   try {
     const pitchId = String(req.params.id || "").trim();
+    const artistId = String(res.locals?.artist?.id || "").trim();
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const pitch = await prisma.pitch.findFirst({
+      where: {
+        id: pitchId,
+        match: {
+          track: {
+            artistId,
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!pitch) {
+      return res.status(404).json({
+        error: "PITCH_NOT_FOUND",
+      });
+    }
 
     const updated = await prisma.pitch.update({
-      where: { id: pitchId },
+      where: {
+        id: pitch.id,
+      },
       data: {
         followUpSent: true,
         followUpSentAt: new Date(),
@@ -97,6 +140,7 @@ followups.post("/followups/:id/mark-sent", async (req, res) => {
     });
   } catch (error: any) {
     console.error("FOLLOWUP_MARK_SENT_ERROR", error?.message ?? error);
+
     return res.status(500).json({
       error: "FOLLOWUP_MARK_SENT_FAILED",
       message: error?.message ?? String(error),
@@ -107,9 +151,26 @@ followups.post("/followups/:id/mark-sent", async (req, res) => {
 followups.post("/followups/:id/send", async (req, res) => {
   try {
     const pitchId = String(req.params.id || "").trim();
+    const artistId = String(res.locals?.artist?.id || "").trim();
 
-    const pitch = await prisma.pitch.findUnique({
-      where: { id: pitchId },
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const pitch = await prisma.pitch.findFirst({
+      where: {
+        id: pitchId,
+        match: {
+          track: {
+            artistId,
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
     });
 
     if (!pitch) {
@@ -119,7 +180,9 @@ followups.post("/followups/:id/send", async (req, res) => {
     }
 
     const updated = await prisma.pitch.update({
-      where: { id: pitchId },
+      where: {
+        id: pitch.id,
+      },
       data: {
         followUpSent: true,
         followUpSentAt: new Date(),
@@ -143,10 +206,22 @@ followups.post("/followups/:id/send", async (req, res) => {
 followups.post("/followups/:id/generate", async (req, res) => {
   try {
     const pitchId = String(req.params.id || "").trim();
+    const artistId = String(res.locals?.artist?.id || "").trim();
 
-    const pitch = await prisma.pitch.findUnique({
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const pitch = await prisma.pitch.findFirst({
       where: {
         id: pitchId,
+        match: {
+          track: {
+            artistId,
+          },
+        },
       },
       include: {
         match: {
@@ -204,4 +279,3 @@ Best regards`;
     });
   }
 });
-

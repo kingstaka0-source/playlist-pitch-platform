@@ -231,6 +231,8 @@ app.use("/ai", requireCurrentArtist);
 app.use("/ai", ai);
 
 app.use(detection);
+
+app.use("/followups", requireCurrentArtist);
 app.use(followups);
 
 app.use("/campaigns", requireCurrentArtist);
