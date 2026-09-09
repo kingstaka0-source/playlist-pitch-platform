@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { prisma } from "../db";
-import { stripe, FRONTEND_URL, STRIPE_PRICE_ID } from "../stripe";
 
 console.log("ARTISTS ROUTE FILE LOADED ✅", __filename);
 
@@ -128,59 +127,6 @@ export async function getArtistUsage(
   };
 }
 
-/**
- * Create artist
- */
-artists.post("/artists", async (req, res) => {
-  try {
-    const { name, email } = req.body ?? {};
-    if (!name || !email) {
-      return res.status(400).json({ error: "name and email required" });
-    }
-
-    const artist = await prisma.artist.create({
-      data: { name, email },
-    });
-
-    return res.json(artist);
-  } catch (err: any) {
-    console.error("CREATE ARTIST ERROR", err?.message ?? err);
-    return res.status(500).json({
-      error: "create artist failed",
-      details: err?.message ?? String(err),
-    });
-  }
-});
-
-/**
- * Connect artist to Spotify (store access token)
- */
-artists.post("/artists/:id/spotify", async (req, res) => {
-  try {
-    const artistId = req.params.id;
-    const { accessToken, spotifyId } = req.body ?? {};
-
-    if (!accessToken) {
-      return res.status(400).json({ error: "accessToken required" });
-    }
-
-    await prisma.artist.update({
-      where: { id: artistId },
-      data: {
-        spotifyAccessToken: accessToken,
-        ...(spotifyId ? { spotifyId } : {}),
-      },
-    });
-
-    return res.json({ id: artistId });
-  } catch (err: any) {
-    console.error("CONNECT SPOTIFY ERROR", err?.message ?? err);
-    return res.status(500).json({
-      error: "connect spotify failed",
-      details: err?.message ?? String(err),
-    });
-  }
-});
 
 /**
  * Usage endpoint
