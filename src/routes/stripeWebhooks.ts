@@ -93,7 +93,11 @@ async function upsertFromSubscription(sub: any) {
 
   const plan = mapStripeStatusToPlan(sub.status);
 
-  await prisma.artist.update({
+const cancelAtPeriodEnd =
+  !!sub.cancel_at_period_end ||
+  !!sub.cancel_at;
+
+await prisma.artist.update({
     where: { id: artist.id },
     data: {
       plan,
@@ -102,7 +106,7 @@ async function upsertFromSubscription(sub: any) {
       stripeSubscriptionId: subId,
       subscriptionStatus,
       currentPeriodEnd,
-      cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+      cancelAtPeriodEnd,
     },
   });
 
@@ -114,7 +118,7 @@ async function upsertFromSubscription(sub: any) {
     mappedStatus: subscriptionStatus,
     plan,
     currentPeriodEnd,
-    cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+    cancelAtPeriodEnd,
   });
 }
 
