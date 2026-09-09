@@ -7,14 +7,47 @@ export const matches = Router();
 matches.post("/matches/run", async (req, res) => {
   try {
     const { trackId } = req.body ?? {};
+
     if (!trackId) {
-      return res.status(400).json({ error: "trackId required" });
+      return res.status(400).json({
+        error: "trackId required",
+      });
     }
 
-    const created = await computeMatches(trackId);
-    return res.json({ ok: true, count: created.length, matches: created });
+    const artistId = String(res.locals?.artist?.id || "").trim();
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const ownedTrack = await prisma.track.findFirst({
+      where: {
+        id: String(trackId),
+        artistId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!ownedTrack) {
+      return res.status(404).json({
+        error: "TRACK_NOT_FOUND",
+      });
+    }
+
+    const created = await computeMatches(ownedTrack.id);
+
+    return res.json({
+      ok: true,
+      count: created.length,
+      matches: created,
+    });
   } catch (err: any) {
     console.error("MATCH RUN ERROR", err?.message ?? err);
+
     return res.status(500).json({
       error: "match run failed",
       details: err?.message ?? String(err),
@@ -25,13 +58,38 @@ matches.post("/matches/run", async (req, res) => {
 matches.get("/matches", async (req, res) => {
   try {
     const trackId = String(req.query.trackId || "");
-    if (!trackId) {
-      return res.status(400).json({ error: "trackId query param required" });
-    }
 
-    
+if (!trackId) {
+  return res.status(400).json({
+    error: "trackId query param required",
+  });
+}
 
-   const list = await prisma.match.findMany({
+const artistId = String(res.locals?.artist?.id || "").trim();
+
+if (!artistId) {
+  return res.status(401).json({
+    error: "UNAUTHORIZED",
+  });
+}
+
+const ownedTrack = await prisma.track.findFirst({
+  where: {
+    id: trackId,
+    artistId,
+  },
+  select: {
+    id: true,
+  },
+});
+
+if (!ownedTrack) {
+  return res.status(404).json({
+    error: "TRACK_NOT_FOUND",
+  });
+}
+
+const list = await prisma.match.findMany({
   where: {
     trackId,
     playlist: {

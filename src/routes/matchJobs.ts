@@ -6,7 +6,11 @@ export const matchJobs = Router();
 
 function getIp(req: any) {
   const xf = req.headers["x-forwarded-for"];
-  if (typeof xf === "string" && xf.length) return xf.split(",")[0].trim();
+
+  if (typeof xf === "string" && xf.length) {
+    return xf.split(",")[0].trim();
+  }
+
   return req.socket?.remoteAddress ?? null;
 }
 
@@ -17,10 +21,26 @@ function getIp(req: any) {
 matchJobs.get("/match-jobs/:jobId", async (req, res) => {
   try {
     const jobId = String(req.params.jobId || "");
-    if (!jobId) return res.status(400).json({ error: "Missing jobId" });
 
-    const job = await prisma.matchJob.findUnique({
-      where: { id: jobId },
+    if (!jobId) {
+      return res.status(400).json({
+        error: "Missing jobId",
+      });
+    }
+
+    const artistId = String(res.locals?.artist?.id || "").trim();
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const job = await prisma.matchJob.findFirst({
+      where: {
+        id: jobId,
+        artistId,
+      },
       select: {
         id: true,
         status: true,
@@ -38,12 +58,22 @@ matchJobs.get("/match-jobs/:jobId", async (req, res) => {
       },
     });
 
-    if (!job) return res.status(404).json({ error: "MatchJob not found" });
+    if (!job) {
+      return res.status(404).json({
+        error: "MatchJob not found",
+      });
+    }
 
-    return res.json({ ok: true, job });
+    return res.json({
+      ok: true,
+      job,
+    });
   } catch (e: any) {
     console.error("MATCH JOBS GET ERROR", e?.message ?? e);
-    return res.status(500).json({ error: "match job get failed" });
+
+    return res.status(500).json({
+      error: "match job get failed",
+    });
   }
 });
 
@@ -54,14 +84,39 @@ matchJobs.get("/match-jobs/:jobId", async (req, res) => {
 matchJobs.post("/match-jobs/:jobId/retry", async (req, res) => {
   try {
     const jobId = String(req.params.jobId || "");
-    if (!jobId) return res.status(400).json({ error: "Missing jobId" });
 
-    const job = await prisma.matchJob.findUnique({
-      where: { id: jobId },
-      select: { id: true, status: true, attempts: true, maxAttempts: true },
+    if (!jobId) {
+      return res.status(400).json({
+        error: "Missing jobId",
+      });
+    }
+
+    const artistId = String(res.locals?.artist?.id || "").trim();
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const job = await prisma.matchJob.findFirst({
+      where: {
+        id: jobId,
+        artistId,
+      },
+      select: {
+        id: true,
+        status: true,
+        attempts: true,
+        maxAttempts: true,
+      },
     });
 
-    if (!job) return res.status(404).json({ error: "MatchJob not found" });
+    if (!job) {
+      return res.status(404).json({
+        error: "MatchJob not found",
+      });
+    }
 
     if (job.status !== ("FAILED" as any)) {
       return res.status(400).json({
@@ -72,7 +127,9 @@ matchJobs.post("/match-jobs/:jobId/retry", async (req, res) => {
     }
 
     const updated = await prisma.matchJob.update({
-      where: { id: jobId },
+      where: {
+        id: job.id,
+      },
       data: {
         status: "QUEUED" as any,
         runAt: new Date(Date.now() + 250),
@@ -82,7 +139,12 @@ matchJobs.post("/match-jobs/:jobId/retry", async (req, res) => {
         lastError: null,
         result: Prisma.JsonNull,
       },
-      select: { id: true, status: true, runAt: true, attempts: true },
+      select: {
+        id: true,
+        status: true,
+        runAt: true,
+        attempts: true,
+      },
     });
 
     return res.json({
@@ -96,6 +158,9 @@ matchJobs.post("/match-jobs/:jobId/retry", async (req, res) => {
     });
   } catch (e: any) {
     console.error("MATCH JOBS RETRY ERROR", e?.message ?? e);
-    return res.status(500).json({ error: "match job retry failed" });
+
+    return res.status(500).json({
+      error: "match job retry failed",
+    });
   }
 });

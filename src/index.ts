@@ -210,7 +210,10 @@ app.use(artists);
 app.use(tracks);
 app.use(curators);
 app.use(playlists);
+
+app.use("/matches", requireCurrentArtist);
 app.use(matches);
+
 app.use("/pitches", pitches);
 app.use(intake);
 app.use("/billing", billing);
@@ -220,6 +223,7 @@ app.use("/tracking", clickTracking);
 app.use("/dashboard", requireCurrentArtist);
 app.use(dashboard);
 
+app.use("/match-jobs", requireCurrentArtist);
 app.use(matchJobs);
 app.use(spotifyDebug);
 
