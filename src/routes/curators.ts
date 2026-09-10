@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db";
+import { requireCurrentArtist } from "../auth/requireCurrentArtist";
 
 console.log("CURATORS ROUTE LOADED ✅", new Date().toISOString());
 
@@ -125,82 +126,134 @@ curators.get("/curators", async (req, res) => {
   }
 });
 
-curators.get("/curators/analytics", async (_req, res) => {
-  try {
-    const rows = await prisma.curator.findMany({
-      include: {
-        playlists: {
-          include: {
-            matches: {
-              include: {
-                pitch: true,
+curators.get(
+  "/curators/analytics",
+  requireCurrentArtist,
+  async (_req, res) => {
+    try {
+      const artistId = String(res.locals?.artist?.id || "").trim();
+
+      if (!artistId) {
+        return res.status(401).json({
+          error: "UNAUTHORIZED",
+        });
+      }
+
+      const rows = await prisma.curator.findMany({
+        where: {
+          playlists: {
+            some: {
+              matches: {
+                some: {
+                  track: {
+                    artistId,
+                  },
+                },
               },
             },
           },
         },
-      },
-    });
+        include: {
+          playlists: {
+            where: {
+              matches: {
+                some: {
+                  track: {
+                    artistId,
+                  },
+                },
+              },
+            },
+            include: {
+              matches: {
+                where: {
+                  track: {
+                    artistId,
+                  },
+                },
+                include: {
+                  pitch: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-    const result = rows.map((curator) => {
-      const pitches = curator.playlists.flatMap((p) =>
-  p.matches
-    .map((m) => m.pitch)
-    .filter((pitch): pitch is NonNullable<typeof pitch> => pitch !== null)
-);
+      const result = rows.map((curator) => {
+        const pitches = curator.playlists.flatMap((playlist) =>
+          playlist.matches
+            .map((match) => match.pitch)
+            .filter(
+              (pitch): pitch is NonNullable<typeof pitch> =>
+                pitch !== null
+            )
+        );
 
-      const sent = pitches.filter((p) => p.status === "SENT").length;
+        const sent = pitches.filter(
+          (pitch) => pitch.status === "SENT"
+        ).length;
 
-      const opens = pitches.reduce(
-        (sum, p) => sum + (p.openCount || 0),
-        0
+        const opens = pitches.reduce(
+          (sum, pitch) => sum + (pitch.openCount || 0),
+          0
+        );
+
+        const clicks = pitches.reduce(
+          (sum, pitch) => sum + (pitch.clickCount || 0),
+          0
+        );
+
+        const replies = pitches.reduce(
+          (sum, pitch) => sum + (pitch.replyCount || 0),
+          0
+        );
+
+        const interested = pitches.some(
+          (pitch) => pitch.positiveReply === true
+        );
+
+        const score =
+          opens * 10 +
+          clicks * 20 +
+          replies * 50 +
+          (interested ? 100 : 0);
+
+        const status =
+          score >= 100
+            ? "HOT"
+            : score >= 30
+              ? "WARM"
+              : "COLD";
+
+        return {
+          id: curator.id,
+          name: curator.name,
+          email: curator.email,
+          sent,
+          opens,
+          clicks,
+          replies,
+          interested,
+          score,
+          status,
+        };
+      });
+
+      return res.json(result);
+    } catch (error: any) {
+      console.error(
+        "CURATOR_ANALYTICS_ERROR",
+        error?.message ?? error
       );
 
-      const clicks = pitches.reduce(
-        (sum, p) => sum + (p.clickCount || 0),
-        0
-      );
-
-      const replies = pitches.reduce(
-        (sum, p) => sum + (p.replyCount || 0),
-        0
-      );
-
-      const interested = pitches.some(
-        (p) => p.positiveReply === true
-      );
-
-      const score =
-  opens * 10 +
-  clicks * 20 +
-  replies * 50 +
-  (interested ? 100 : 0);
-
-const status =
-  score >= 100 ? "HOT" :
-  score >= 30 ? "WARM" :
-  "COLD";
-
-      return {
-        id: curator.id,
-        name: curator.name,
-        email: curator.email,
-        sent,
-        opens,
-        clicks,
-        replies,
-        interested,
-        score,
-        status,
-      };
-    });
-
-    return res.json(result);
-  } catch (error: any) {
-    return res.status(500).json({
-      error: error?.message ?? String(error),
-    });
+      return res.status(500).json({
+        error: "CURATOR_ANALYTICS_FAILED",
+        message: error?.message ?? String(error),
+      });
+    }
   }
-});
+);
 
 curators.get("/curators/:id", async (req, res) => {
   try {
@@ -249,63 +302,97 @@ curators.get("/curators/:id", async (req, res) => {
   }
 });
 
-curators.post("/curators/:id/positive-reply", async (req, res) => {
-  try {
-    const curatorId = String(req.params.id || "").trim();
+curators.post(
+  "/curators/:id/positive-reply",
+  requireCurrentArtist,
+  async (req, res) => {
+    try {
+      const curatorId = String(req.params.id || "").trim();
+      const artistId = String(res.locals?.artist?.id || "").trim();
 
-    const curator = await prisma.curator.findUnique({
-      where: { id: curatorId },
-      include: {
-        playlists: {
-          include: {
-            matches: {
-              include: {
-                pitch: true,
+      if (!artistId) {
+        return res.status(401).json({
+          error: "UNAUTHORIZED",
+        });
+      }
+
+      const curator = await prisma.curator.findFirst({
+        where: {
+          id: curatorId,
+          playlists: {
+            some: {
+              matches: {
+                some: {
+                  track: {
+                    artistId,
+                  },
+                },
               },
             },
           },
         },
-      },
-    });
+        include: {
+          playlists: {
+            include: {
+              matches: {
+                where: {
+                  track: {
+                    artistId,
+                  },
+                },
+                include: {
+                  pitch: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-    if (!curator) {
-      return res.status(404).json({
-        error: "CURATOR_NOT_FOUND",
+      if (!curator) {
+        return res.status(404).json({
+          error: "CURATOR_NOT_FOUND",
+        });
+      }
+
+      const pitchIds = curator.playlists.flatMap((playlist) =>
+        playlist.matches
+          .map((match) => match.pitch?.id)
+          .filter((id): id is string => Boolean(id))
+      );
+
+      const result = await prisma.pitch.updateMany({
+        where: {
+          id: {
+            in: pitchIds,
+          },
+          match: {
+            track: {
+              artistId,
+            },
+          },
+        },
+        data: {
+          positiveReply: true,
+          replyCount: 1,
+          lastRepliedAt: new Date(),
+        },
+      });
+
+      return res.json({
+        ok: true,
+        updated: result.count,
+      });
+    } catch (error: any) {
+      console.error(
+        "POSITIVE_REPLY_ERROR",
+        error?.message ?? error
+      );
+
+      return res.status(500).json({
+        error: "POSITIVE_REPLY_FAILED",
+        message: error?.message ?? String(error),
       });
     }
-
-    const pitchIds = curator.playlists.flatMap((p) =>
-      p.matches
-        .map((m) => m.pitch?.id)
-        .filter(Boolean)
-    ) as string[];
-
-    await prisma.pitch.updateMany({
-      where: {
-        id: {
-          in: pitchIds,
-        },
-      },
-      data: {
-        positiveReply: true,
-        replyCount: 1,
-        lastRepliedAt: new Date(),
-      },
-    });
-
-    return res.json({
-      ok: true,
-      updated: pitchIds.length,
-    });
-  } catch (error: any) {
-    console.error(
-      "POSITIVE_REPLY_ERROR",
-      error?.message ?? error
-    );
-
-    return res.status(500).json({
-      error: "POSITIVE_REPLY_FAILED",
-      message: error?.message ?? String(error),
-    });
   }
-});
+);
