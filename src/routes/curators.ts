@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import { requireCurrentArtist } from "../auth/requireCurrentArtist";
+import { requireAdmin } from "../auth/requireAdmin";
 
 console.log("CURATORS ROUTE LOADED ✅", new Date().toISOString());
 
 export const curators = Router();
 
-curators.post("/curators", async (req, res) => {
+curators.post("/curators", requireAdmin, async (req, res) => {
   try {
     const {
       name,
@@ -52,7 +53,7 @@ curators.post("/curators", async (req, res) => {
   }
 });
 
-curators.get("/curators", async (req, res) => {
+curators.get("/curators", requireAdmin, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim().toLowerCase();
     const contactMethod = String(req.query.contactMethod || "").trim();
@@ -255,7 +256,7 @@ curators.get(
   }
 );
 
-curators.get("/curators/:id", async (req, res) => {
+curators.get("/curators/:id", requireAdmin, async (req, res) => {
   try {
     const id = String(req.params.id || "");
     if (!id) {
