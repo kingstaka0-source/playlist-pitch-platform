@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import { prisma } from "../db";
 import { importSpotifyPlaylistForArtist } from "../lib/spotifyPlaylistImporter";
 import { Prisma } from "@prisma/client";
+import { requireAdmin } from "../auth/requireAdmin";
 
 export const playlists = Router();
 
@@ -657,7 +658,7 @@ playlists.post("/playlists/:id/auto-pitch-all", async (req, res) => {
   }
 });
 
-playlists.get("/playlists", async (req, res) => {
+playlists.get("/playlists", requireAdmin, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     const genre = String(req.query.genre || "").trim();
@@ -749,7 +750,7 @@ playlists.get("/playlists", async (req, res) => {
   }
 });
 
-playlists.get("/playlists/:id", async (req, res) => {
+playlists.get("/playlists/:id", requireAdmin, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
 
