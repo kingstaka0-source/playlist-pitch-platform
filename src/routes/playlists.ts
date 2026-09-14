@@ -133,7 +133,7 @@ async function getSpotifyAppAccessToken() {
   return String(tokenJson.access_token);
 }
 
-playlists.post("/playlists", async (req, res) => {
+playlists.post("/playlists", requireAdmin, async (req, res) => {
   try {
     const {
       curatorId,
@@ -194,7 +194,7 @@ playlists.post("/playlists", async (req, res) => {
   }
 });
 
-playlists.post("/playlists/discover", async (req, res) => {
+playlists.post("/playlists/discover", requireAdmin, async (req, res) => {
   try {
     const payload = (req.body ?? {}) as Record<string, unknown>;
 
@@ -382,7 +382,7 @@ playlists.post("/playlists/discover", async (req, res) => {
   }
 });
 
-playlists.post("/playlists/import-from-spotify", async (req, res) => {
+playlists.post("/playlists/import-from-spotify", requireAdmin, async (req, res) => {
   try {
     const artistId = getArtistId(res);
 
@@ -421,7 +421,7 @@ playlists.post("/playlists/import-from-spotify", async (req, res) => {
   }
 });
 
-playlists.get("/playlists/search-spotify", async (req, res) => {
+playlists.get("/playlists/search-spotify", requireAdmin, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     const limitRaw = Number(req.query.limit || 10);
@@ -501,7 +501,7 @@ playlists.get("/playlists/search-spotify", async (req, res) => {
   }
 });
 
-playlists.post("/playlists/:id/auto-pitch-all", async (req, res) => {
+playlists.post("/playlists/:id/auto-pitch-all", requireAdmin, async (req, res) => {
   try {
     const artistId = getArtistId(res);
 
