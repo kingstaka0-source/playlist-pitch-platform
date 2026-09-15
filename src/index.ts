@@ -227,7 +227,11 @@ app.use("/match-jobs", requireCurrentArtist);
 app.use(matchJobs);
 app.use(spotifyDebug);
 
-app.use("/ai", requireCurrentArtist);
+app.use(
+  "/ai",
+  requireCurrentArtist,
+  requireLegal("ARTIST", "PITCH_CONSENT"),
+);
 app.use("/ai", ai);
 
 app.use(detection);
