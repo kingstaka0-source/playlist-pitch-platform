@@ -6,10 +6,6 @@ export const clickTracking = Router();
 clickTracking.get("/click/:pitchId", async (req, res) => {
   const { pitchId } = req.params;
 
-  const targetUrl = String(
-    req.query.url || "https://spotify.com",
-  );
-
   const campaignId = String(
     req.query.campaignId || "",
   ).trim();
@@ -25,9 +21,31 @@ clickTracking.get("/click/:pitchId", async (req, res) => {
   const clickedAt = new Date();
 
   try {
-    // =====================================
-    // EXISTING PITCH TRACKING
-    // =====================================
+    const pitch = await prisma.pitch.findUnique({
+      where: {
+        id: pitchId,
+      },
+      select: {
+        id: true,
+        match: {
+          select: {
+            track: {
+              select: {
+                spotifyTrackId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pitch?.match?.track?.spotifyTrackId) {
+      return res.status(404).send("Track not found");
+    }
+
+    const targetUrl =
+      `https://open.spotify.com/track/` +
+      encodeURIComponent(pitch.match.track.spotifyTrackId);
 
     await prisma.pitch.update({
       where: {
@@ -40,10 +58,6 @@ clickTracking.get("/click/:pitchId", async (req, res) => {
         lastClickedAt: clickedAt,
       },
     });
-
-    // =====================================
-    // CAMPAIGN EVENT TRACKING
-    // =====================================
 
     if (campaignId && campaignItemId && matchId) {
       const campaignItem =
@@ -104,6 +118,6 @@ clickTracking.get("/click/:pitchId", async (req, res) => {
       error,
     );
 
-    return res.redirect(targetUrl);
+    return res.status(404).send("Tracking link not found");
   }
 });
