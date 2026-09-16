@@ -442,14 +442,12 @@ try {
     });
 
     const spotifyId = meRes.data.id as string;
-    const email = (meRes.data.email as string | undefined) || undefined;
 
     // 3) Opslaan
     await prisma.artist.update({
       where: { id: artistId },
       data: {
         spotifyId,
-        email,
         spotifyAccessToken: accessToken,
         spotifyRefreshToken: refreshToken,
         spotifyTokenExpiresAt: new Date(Date.now() + expiresIn * 1000),
