@@ -12,7 +12,7 @@ model Artist {
   clerkUserId             String?            @unique
   name                    String
   email                   String?            @unique
-  spotifyId               String?            @unique
+  spotifyId               String?
   spotifyArtistId         String?            @unique
   spotifyArtistName       String?
   spotifyArtistUrl        String?
