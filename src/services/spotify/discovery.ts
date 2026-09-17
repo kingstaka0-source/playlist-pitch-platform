@@ -83,7 +83,7 @@ function chooseBestArtistMatch(
   return exactMatch ?? null;
 }
 
-async function saveDiscoveredArtist(
+export async function saveDiscoveredArtist(
   artistId: string,
   spotifyArtist: SpotifyArtist
 ): Promise<DiscoveredSpotifyArtist> {

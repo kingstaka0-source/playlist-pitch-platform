@@ -3,9 +3,13 @@ import { createHmac, timingSafeEqual } from "crypto";
 import axios from "axios";
 import { prisma } from "../db";
 import { env } from "../env";
-import { discoverSpotifyArtist } from "../services/spotify/discovery";
+import {
+  discoverSpotifyArtist,
+  saveDiscoveredArtist,
+} from "../services/spotify/discovery";
 import { loadSpotifyReleases } from "../services/spotify/releases";
 import { importSpotifyCatalog } from "../services/spotify/importCatalog";
+import { getValidSpotifyAccessToken } from "../services/spotify/refreshToken";
 import { getSpotifyAppAccessToken } from "../spotifyAppClient";
 
 export const spotifyAuth = Router();
@@ -279,6 +283,175 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
     return res.status(500).json({
       error: "SPOTIFY_STATUS_FAILED",
       message: err?.message ?? String(err),
+    });
+  }
+});
+
+/**
+ * Search Spotify artist profiles.
+ *
+ * GET /auth/spotify/artist-options?q=...
+ */
+spotifyAuth.get("/auth/spotify/artist-options", async (req, res) => {
+  try {
+    const artistId = getArtistId(res);
+
+    if (!artistId) {
+      return res.status(401).json({
+        success: false,
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const q = String(req.query.q || "").trim();
+
+    if (!q) {
+      return res.status(400).json({
+        success: false,
+        error: "MISSING_ARTIST_QUERY",
+      });
+    }
+
+    const artist = await prisma.artist.findUnique({
+      where: { id: artistId },
+      select: {
+        spotifyAccessToken: true,
+      },
+    });
+
+    if (!artist?.spotifyAccessToken) {
+      return res.status(401).json({
+        success: false,
+        error: "SPOTIFY_NOT_CONNECTED",
+      });
+    }
+
+    const accessToken = await getValidSpotifyAccessToken(artistId);
+
+    const response = await axios.get(
+      "https://api.spotify.com/v1/search",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        params: {
+          q,
+          type: "artist",
+          limit: 20,
+          market: "NL",
+        },
+        timeout: 10_000,
+      }
+    );
+
+    const artists = (response.data.artists?.items ?? []).map(
+      (candidate: any) => ({
+        id: candidate.id,
+        name: candidate.name,
+        imageUrl: candidate.images?.[0]?.url ?? null,
+        followers: candidate.followers?.total ?? 0,
+        spotifyUrl:
+          candidate.external_urls?.spotify ?? null,
+        genres: candidate.genres ?? [],
+        popularity: candidate.popularity ?? 0,
+      })
+    );
+
+    return res.json({
+      success: true,
+      artists,
+    });
+  } catch (error: any) {
+    console.error(
+      "SPOTIFY ARTIST OPTIONS ERROR",
+      error?.response?.data ??
+        error?.message ??
+        error
+    );
+
+    return res.status(
+      error?.response?.status || 500
+    ).json({
+      success: false,
+      error: "SPOTIFY_ARTIST_OPTIONS_FAILED",
+    });
+  }
+});
+
+/**
+ * Save the Spotify artist profile selected by the current TuneReach artist.
+ *
+ * POST /auth/spotify/select-artist
+ */
+spotifyAuth.post("/auth/spotify/select-artist", async (req, res) => {
+  try {
+    const artistId = getArtistId(res);
+
+    if (!artistId) {
+      return res.status(401).json({
+        success: false,
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const spotifyArtistId = String(
+      req.body?.spotifyArtistId || ""
+    ).trim();
+
+    if (!spotifyArtistId) {
+      return res.status(400).json({
+        success: false,
+        error: "MISSING_SPOTIFY_ARTIST_ID",
+      });
+    }
+
+    const accessToken =
+      await getValidSpotifyAccessToken(artistId);
+
+    /*
+     * Do not trust artist metadata sent by the browser.
+     * Retrieve the selected profile directly from Spotify.
+     */
+    const response = await axios.get(
+      `https://api.spotify.com/v1/artists/${encodeURIComponent(
+        spotifyArtistId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        timeout: 10_000,
+      }
+    );
+
+    const selectedArtist =
+      await saveDiscoveredArtist(
+        artistId,
+        response.data
+      );
+
+    return res.json({
+      success: true,
+      artist: selectedArtist,
+      nextStep: "LOAD_RELEASES",
+    });
+  } catch (error: any) {
+    console.error(
+      "SPOTIFY ARTIST SELECTION ERROR",
+      error?.response?.data ??
+        error?.message ??
+        error
+    );
+
+    return res.status(
+      error?.response?.status || 500
+    ).json({
+      success: false,
+      error: "SPOTIFY_ARTIST_SELECTION_FAILED",
+      message:
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Could not select Spotify artist.",
     });
   }
 });
