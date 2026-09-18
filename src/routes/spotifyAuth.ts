@@ -218,6 +218,11 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
         spotifyId: true,
         spotifyAccessToken: true,
         spotifyTokenExpiresAt: true,
+        spotifyArtistId: true,
+        spotifyArtistName: true,
+        spotifyArtistUrl: true,
+        spotifyArtistImageUrl: true,
+        spotifyArtistFollowers: true,
       },
     });
 
@@ -276,6 +281,15 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
         followers: profile.followers ?? 0,
         spotifyUrl: profile.spotifyUrl,
       },
+      selectedArtist: artist.spotifyArtistId
+        ? {
+            id: artist.spotifyArtistId,
+            name: artist.spotifyArtistName,
+            imageUrl: artist.spotifyArtistImageUrl,
+            followers: artist.spotifyArtistFollowers ?? 0,
+            spotifyUrl: artist.spotifyArtistUrl,
+          }
+        : null,
     });
   } catch (err: any) {
     console.error("SPOTIFY STATUS ERROR", err?.message ?? err);
