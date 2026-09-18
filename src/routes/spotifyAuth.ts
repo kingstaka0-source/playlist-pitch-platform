@@ -351,7 +351,7 @@ spotifyAuth.get("/auth/spotify/artist-options", async (req, res) => {
         params: {
           q,
           type: "artist",
-          limit: 20,
+          limit: 10,
           market: "NL",
         },
         timeout: 10_000,
