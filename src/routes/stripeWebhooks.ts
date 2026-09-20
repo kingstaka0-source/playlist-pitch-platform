@@ -88,8 +88,16 @@ async function upsertFromSubscription(sub: any) {
 
   const subscriptionStatus = mapStripeStatusToAppStatus(sub.status);
 
-  const currentPeriodEnd =
+  const incomingCurrentPeriodEnd =
     toDate(sub.current_period_end) ?? toDate(sub.trial_end) ?? null;
+
+  const currentPeriodEnd =
+    artist.stripeSubscriptionId === subId &&
+    artist.currentPeriodEnd &&
+    incomingCurrentPeriodEnd &&
+    artist.currentPeriodEnd > incomingCurrentPeriodEnd
+      ? artist.currentPeriodEnd
+      : incomingCurrentPeriodEnd;
 
   const plan = mapStripeStatusToPlan(sub.status);
 
