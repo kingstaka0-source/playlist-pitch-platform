@@ -63,8 +63,8 @@ async function findArtistForSubscription(sub: any) {
       : null) ??
     (customerId
       ? await prisma.artist.findFirst({
-          where: { stripeCustomerId: customerId },
-        })
+        where: { stripeCustomerId: customerId },
+      })
       : null);
 
   return {
@@ -93,11 +93,11 @@ async function upsertFromSubscription(sub: any) {
 
   const plan = mapStripeStatusToPlan(sub.status);
 
-const cancelAtPeriodEnd =
-  !!sub.cancel_at_period_end ||
-  !!sub.cancel_at;
+  const cancelAtPeriodEnd =
+    !!sub.cancel_at_period_end ||
+    !!sub.cancel_at;
 
-await prisma.artist.update({
+  await prisma.artist.update({
     where: { id: artist.id },
     data: {
       plan,
@@ -154,8 +154,8 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           typeof session.metadata?.artistId === "string"
             ? session.metadata.artistId
             : typeof session.client_reference_id === "string"
-            ? session.client_reference_id
-            : "";
+              ? session.client_reference_id
+              : "";
 
         const customerId =
           typeof session.customer === "string"
@@ -209,8 +209,8 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           })) ??
           (typeof sub.customer === "string"
             ? await prisma.artist.findFirst({
-                where: { stripeCustomerId: sub.customer },
-              })
+              where: { stripeCustomerId: sub.customer },
+            })
             : null);
 
         if (artist) {
@@ -276,25 +276,15 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           typeof inv.subscription === "string" ? inv.subscription : null;
 
         if (subId) {
-          const artist = await prisma.artist.findFirst({
-            where: { stripeSubscriptionId: subId },
+          const subscription = await stripe.subscriptions.retrieve(subId);
+
+          await upsertFromSubscription(subscription);
+
+          console.log("WEBHOOK_INVOICE_PAYMENT_SUCCEEDED", {
+            subId,
+            invoiceId: inv.id,
+            subscriptionStatus: subscription.status,
           });
-
-          if (artist) {
-            await prisma.artist.update({
-              where: { id: artist.id },
-              data: {
-                subscriptionStatus: "ACTIVE",
-                plan: "PRO",
-              },
-            });
-
-            console.log("WEBHOOK_INVOICE_PAYMENT_SUCCEEDED", {
-              artistId: artist.id,
-              subId,
-              invoiceId: inv.id,
-            });
-          }
         }
 
         break;
