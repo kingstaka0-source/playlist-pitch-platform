@@ -38,12 +38,13 @@ function canEmailCurator(curator: CuratorLike | null | undefined) {
 }
 
 function resolveRecipient(curatorEmail?: string | null) {
-  const from = String(process.env.EMAIL_FROM || "").trim();
   const resendTestTo = String(process.env.RESEND_TEST_TO || "").trim();
 
   if (!curatorEmail) return null;
 
-  if (from.toLowerCase() === "onboarding@resend.dev" && resendTestTo) {
+  // Safety override for testing:
+  // when RESEND_TEST_TO is configured, never email the real curator.
+  if (resendTestTo) {
     return resendTestTo;
   }
 
