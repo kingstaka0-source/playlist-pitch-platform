@@ -1105,7 +1105,7 @@ if (!spotifyTrackId) {
             placements.push({
               id: match.playlist.id,
               name: match.playlist.name,
-              followers: Math.floor(Math.random() * 50000),
+              followers: Number((match.playlist.rules as any)?.spotifyFollowers ?? 0),
               spotifyUrl: match.playlist.spotifyPlaylistId
                 ? `https://open.spotify.com/playlist/${match.playlist.spotifyPlaylistId}`
                 : null,
@@ -1197,7 +1197,7 @@ tracks.get("/tracks/:id/placements", async (req, res) => {
     const placements = matches.map((match) => ({
       id: match.playlist.id,
       name: match.playlist.name,
-      followers: Math.floor(Math.random() * 50000),
+      followers: Number((match.playlist.rules as any)?.spotifyFollowers ?? 0),
       spotifyUrl: match.playlist.spotifyPlaylistId
         ? `https://open.spotify.com/playlist/${match.playlist.spotifyPlaylistId}`
         : null,
