@@ -92,13 +92,6 @@ if (!ownedTrack) {
 const list = await prisma.match.findMany({
   where: {
     trackId,
-    playlist: {
-      curator: {
-        email: { not: null },
-        contactMethod: "EMAIL",
-        consent: true,
-      },
-    },
   },
   include: {
     playlist: {
@@ -187,6 +180,9 @@ const ranked = list
                     consent: curator.consent,
                     languages: curator.languages,
                     contactConfidence: curator.contactConfidence,
+                    submissionUrl: curator.submissionUrl,
+                    websiteUrl: curator.websiteUrl,
+                    instagramUrl: curator.instagramUrl,
                     canEmail,
                   }
                 : null,
