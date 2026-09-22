@@ -119,7 +119,7 @@ const ranked = list
       m.playlist?.curator?.contactConfidence || 0;
 
     const followers =
-      (m.playlist as any)?.followers || 0;
+      Number((m.playlist.rules as any)?.spotifyFollowers ?? 0);
 
     const followerScore =
       followers >= 100000
@@ -175,6 +175,9 @@ const ranked = list
               name: m.playlist.name,
               spotifyPlaylistId: m.playlist.spotifyPlaylistId,
               genres: m.playlist.genres,
+              followers: Number(
+                (m.playlist.rules as any)?.spotifyFollowers ?? 0,
+              ),
               curator: curator
                 ? {
                     id: curator.id,
