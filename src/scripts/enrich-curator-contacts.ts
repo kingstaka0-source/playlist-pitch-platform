@@ -116,9 +116,34 @@ function looksLikeSubmission(url: string): boolean {
 }
 
 function looksLikeWebsite(url: string): boolean {
-  if (!/^https?:\/\//i.test(url)) return false;
-  if (looksLikeInstagram(url)) return false;
-  return true;
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+
+    const blockedHosts = [
+      "spotify.com",
+      "youtube.com",
+      "youtu.be",
+      "instagram.com",
+      "forms.gle",
+      "docs.google.com",
+      "typeform.com",
+      "airtable.com",
+    ];
+
+    const blocked = blockedHosts.some(
+      (domain) => host === domain || host.endsWith(`.${domain}`),
+    );
+
+    return !blocked && !looksLikeSubmission(url);
+  } catch {
+    return false;
+  }
 }
 
 function buildCandidatesFromPlaylist(input: {
