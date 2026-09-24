@@ -617,7 +617,12 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
     isOfficial,
   };
 }
-async function main() {
+type ImportOptions = {
+  filter?: string;
+  maxPages?: number;
+};
+
+async function main(options: ImportOptions = {}) {
   const now = new Date();
 
   const startOfUtcDay = new Date(
@@ -687,12 +692,13 @@ async function main() {
 
   const seenPlaylistIds = new Set<string>();
 
-  const filter = String(process.argv[2] || "").toLowerCase();
+  const filter = String(options.filter || "").toLowerCase();
 
-  const requestedMaxPages = Number.parseInt(process.argv[3] || "", 10);
+  const requestedMaxPages = options.maxPages;
   const maxPages =
-    Number.isFinite(requestedMaxPages) && requestedMaxPages > 0
-      ? Math.min(requestedMaxPages, MAX_PAGES_PER_QUERY)
+    Number.isFinite(requestedMaxPages) &&
+    Number(requestedMaxPages) > 0
+      ? Math.min(Number(requestedMaxPages), MAX_PAGES_PER_QUERY)
       : MAX_PAGES_PER_QUERY;
 
   console.log(`Spotify pages per search: ${maxPages}/${MAX_PAGES_PER_QUERY}`);
@@ -811,7 +817,12 @@ const groupsToRun = filter
   });
 }
 
-main()
+const cliMaxPages = Number.parseInt(process.argv[3] || "", 10);
+
+main({
+  filter: process.argv[2],
+  maxPages: Number.isFinite(cliMaxPages) ? cliMaxPages : undefined,
+})
   .catch((e) => {
     console.error("IMPORT FAILED");
     console.error(e);
