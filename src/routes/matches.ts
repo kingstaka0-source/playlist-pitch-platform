@@ -4,6 +4,41 @@ import { computeMatches } from "../matching";
 
 export const matches = Router();
 
+function safeCuratorWebsiteUrl(value: string | null | undefined): string | null {
+  const raw = String(value || "").trim();
+
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+
+    const blockedHosts = [
+      "spotify.com",
+      "youtube.com",
+      "youtu.be",
+      "instagram.com",
+      "forms.gle",
+      "docs.google.com",
+      "typeform.com",
+      "airtable.com",
+    ];
+
+    const blocked = blockedHosts.some(
+      (domain) => host === domain || host.endsWith(`.${domain}`),
+    );
+
+    return blocked ? null : url.toString();
+  } catch {
+    return null;
+  }
+}
+
 matches.post("/matches/run", async (req, res) => {
   try {
     const { trackId } = req.body ?? {};
@@ -181,7 +216,7 @@ const ranked = list
                     languages: curator.languages,
                     contactConfidence: curator.contactConfidence,
                     submissionUrl: curator.submissionUrl,
-                    websiteUrl: curator.websiteUrl,
+                    websiteUrl: safeCuratorWebsiteUrl(curator.websiteUrl),
                     instagramUrl: curator.instagramUrl,
                     canEmail,
                   }
