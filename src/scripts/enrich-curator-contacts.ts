@@ -85,11 +85,21 @@ function extractEmails(text: string): string[] {
   );
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#x2F;/gi, "/")
+    .replace(/&#47;/g, "/")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'");
+}
 function extractUrls(text: string): string[] {
   if (!text) return [];
+  const decoded = decodeHtmlEntities(text);
+
   const matches =
-    text.match(/https?:\/\/[^\s<>"')\]]+/gi) ||
-    text.match(/www\.[^\s<>"')\]]+/gi) ||
+    decoded.match(/https?:\/\/[^\s<>"')\]]+/gi) ||
+    decoded.match(/www\.[^\s<>"')\]]+/gi) ||
     [];
 
   return uniq(
