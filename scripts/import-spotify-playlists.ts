@@ -1,5 +1,9 @@
 import "dotenv/config";
 import { PrismaClient, ContactMethod, Prisma } from "@prisma/client";
+import {
+  extractCuratorContactFromDescription,
+  getActionableContactType,
+} from "../src/lib/curatorContactQuality";
 
 const prisma = new PrismaClient();
 
@@ -341,11 +345,25 @@ async function searchSpotifyPlaylistsPage(
 
   const json: SpotifySearchResponse = await res.json().catch(() => ({}));
 
- if (res.status === 429) {
-  console.log("RATE LIMITED - sleeping 10 sec...");
-  await sleep(10000);
-  return [];
-}
+  if (res.status === 429) {
+    const retryAfterHeader = res.headers.get("retry-after");
+    const retryAfterSeconds = Number.parseInt(
+      retryAfterHeader || "",
+      10
+    );
+
+    const retryAfter =
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds
+        : null;
+
+    const retryMessage =
+      retryAfter !== null
+        ? `Spotify rate limit reached. Retry after ${retryAfter} seconds.`
+        : "Spotify rate limit reached. Retry later.";
+
+    throw new Error(retryMessage);
+  }
 
 if (!res.ok) {
   throw new Error(
@@ -390,41 +408,6 @@ async function searchSpotifyPlaylistsAllPages(
   return all;
 }
 
-async function findOrCreateCurator(input: {
-  ownerId: string | null;
-  ownerName: string;
-}) {
-  const ownerName = clean(input.ownerName) || "Unknown Curator";
-
-  const existing = await withRetry(
-    () =>
-      prisma.curator.findFirst({
-        where: {
-          name: ownerName,
-          contactMethod: ContactMethod.INAPP,
-          consent: true,
-        },
-      }),
-    `curator.findFirst(${ownerName})`
-  );
-
-  if (existing) return existing;
-
-  return withRetry(
-    () =>
-      prisma.curator.create({
-        data: {
-          name: ownerName,
-          email: null,
-          contactMethod: ContactMethod.INAPP,
-          consent: true,
-          languages: ["en"],
-        },
-      }),
-    `curator.create(${ownerName})`
-  );
-}
-
 async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
   const spotifyPlaylistId = clean(item?.id);
   const playlistName = clean(item?.name);
@@ -437,11 +420,6 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
   if (!spotifyPlaylistId || !playlistName) {
     return { status: "skipped_invalid" as const, isOfficial };
   }
-
-  const curator = await findOrCreateCurator({
-    ownerId,
-    ownerName,
-  });
 
   const detectedGenres = description
     .toLowerCase()
@@ -468,20 +446,6 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
 
   const genres = uniqStrings([...genreHints, ...detectedGenres]);
 
-  const rules = {
-    importedFrom: "spotify_search",
-    isOfficialSpotify: isOfficial,
-    isContactable: false,
-    spotifyUrl: item?.external_urls?.spotify || null,
-    imageUrl:
-      Array.isArray(item?.images) && item.images[0]?.url ? item.images[0]!.url : null,
-    ownerId,
-    ownerName,
-    description,
-    trackCount: item?.tracks?.total ?? 0,
-    isPublic: item?.public ?? null,
-  };
-
   const existing = await withRetry(
     () =>
       prisma.playlist.findFirst({
@@ -497,13 +461,11 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
           where: { id: existing.id },
           data: {
             name: playlistName,
-            curatorId: curator.id,
             spotifyUrl: safeSpotifyUrl(item),
             description: safeDescription(item?.description),
             ownerDisplayName: safeOwnerDisplayName(item),
             ownerSpotifyId: safeOwnerSpotifyId(item),
             genres,
-            rules: rules as Prisma.InputJsonValue,
           },
         }),
       `playlist.update(${playlistName})`
@@ -516,6 +478,118 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
       isOfficial,
     };
   }
+
+  const contact = extractCuratorContactFromDescription(description);
+  const contactType = getActionableContactType(contact);
+
+  if (contactType === "NONE") {
+    return {
+      status: "skipped_no_contact" as const,
+      name: playlistName,
+      isOfficial,
+    };
+  }
+
+  const contactMethod =
+    contactType === "EMAIL"
+      ? ContactMethod.EMAIL
+      : ContactMethod.INAPP;
+
+  let curator =
+    contact.email
+      ? await withRetry(
+          () =>
+            prisma.curator.findFirst({
+              where: { email: contact.email },
+            }),
+          `curator.findByEmail(${contact.email})`
+        )
+      : null;
+
+  if (!curator) {
+    curator = await withRetry(
+      () =>
+        prisma.curator.findFirst({
+          where: {
+            name: ownerName,
+            contactMethod,
+          },
+        }),
+      `curator.findFirst(${ownerName})`
+    );
+  }
+
+  if (curator) {
+    curator = await withRetry(
+      () =>
+        prisma.curator.update({
+          where: { id: curator!.id },
+          data: {
+            email: contact.email || curator!.email,
+            contactMethod:
+              contactType === "EMAIL"
+                ? ContactMethod.EMAIL
+                : curator!.contactMethod,
+            instagramUrl:
+              contact.instagramUrl || curator!.instagramUrl,
+            websiteUrl:
+              contact.websiteUrl || curator!.websiteUrl,
+            submissionUrl:
+              contact.submissionUrl || curator!.submissionUrl,
+            contactConfidence: Math.max(
+              curator!.contactConfidence ?? 0,
+              contact.contactConfidence
+            ),
+            contactSourceUrl:
+              safeSpotifyUrl(item) || curator!.contactSourceUrl,
+            lastEnrichedAt: new Date(),
+            enrichmentNotes:
+              curator!.enrichmentNotes ||
+              "Verified from Spotify playlist description",
+          },
+        }),
+      `curator.update(${ownerName})`
+    );
+  } else {
+    curator = await withRetry(
+      () =>
+        prisma.curator.create({
+          data: {
+            name: ownerName,
+            email: contact.email,
+            contactMethod,
+            consent: false,
+            languages: ["en"],
+            instagramUrl: contact.instagramUrl,
+            websiteUrl: contact.websiteUrl,
+            submissionUrl: contact.submissionUrl,
+            contactConfidence: contact.contactConfidence,
+            contactSourceUrl: safeSpotifyUrl(item),
+            lastEnrichedAt: new Date(),
+            enrichmentNotes:
+              "Verified from Spotify playlist description",
+          },
+        }),
+      `curator.create(${ownerName})`
+    );
+  }
+
+  const rules = {
+    importedFrom: "spotify_search_verified",
+    isOfficialSpotify: isOfficial,
+    isContactable: true,
+    contactType,
+    spotifyUrl: item?.external_urls?.spotify || null,
+    imageUrl:
+      Array.isArray(item?.images) && item.images[0]?.url
+        ? item.images[0]!.url
+        : null,
+    ownerId,
+    ownerName,
+    description,
+    trackCount: item?.tracks?.total ?? 0,
+    isPublic: item?.public ?? null,
+  };
 
   const created = await withRetry(
     () =>
@@ -542,11 +616,69 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
     isOfficial,
   };
 }
-
 async function main() {
+  const now = new Date();
+
+  const startOfUtcDay = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate()
+    )
+  );
+
+  const startOfNextUtcDay = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1
+    )
+  );
+
+  const verifiedCreatedToday = await withRetry(
+    () =>
+      prisma.playlist.count({
+        where: {
+          createdAt: {
+            gte: startOfUtcDay,
+            lt: startOfNextUtcDay,
+          },
+          rules: {
+            path: ["importedFrom"],
+            equals: "spotify_search_verified",
+          },
+        },
+      }),
+    "playlist.count(verifiedCreatedToday)"
+  );
+
+  const DAILY_ACTIONABLE_PLAYLIST_LIMIT = 100;
+
+  const remainingDailySlots = Math.max(
+    0,
+    DAILY_ACTIONABLE_PLAYLIST_LIMIT - verifiedCreatedToday
+  );
+
+  console.log("=== DAILY VERIFIED PLAYLIST CAP ===");
+  console.log({
+    verifiedCreatedToday,
+    dailyLimit: DAILY_ACTIONABLE_PLAYLIST_LIMIT,
+    remainingDailySlots,
+    utcDay: startOfUtcDay.toISOString().slice(0, 10),
+  });
+
+  if (remainingDailySlots === 0) {
+    console.log(
+      `DAILY VERIFIED LIMIT ALREADY REACHED: ${DAILY_ACTIONABLE_PLAYLIST_LIMIT}`
+    );
+    return;
+  }
+
   const accessToken = await getSpotifyAccessToken();
 
   let created = 0;
+  let skippedNoContact = 0;
+  let dailyLimitReached = false;
   let updated = 0;
   let skippedInvalid = 0;
   let failed = 0;
@@ -578,7 +710,16 @@ const groupsToRun = filter
     );
   } catch (error) {
     failed += 1;
+
+    const message =
+      error instanceof Error ? error.message : String(error);
+
     console.error(`SEARCH FAILED for "${group.q}":`, error);
+
+    if (message.startsWith("Spotify rate limit reached.")) {
+      throw error;
+    }
+
     continue;
   }
 
@@ -608,11 +749,21 @@ const groupsToRun = filter
           console.log(
             `CREATE ${result.name}${result.isOfficial ? " [OFFICIAL]" : ""}`
           );
+          if (created >= remainingDailySlots) {
+            dailyLimitReached = true;
+            console.log(
+              `DAILY VERIFIED LIMIT REACHED: ${DAILY_ACTIONABLE_PLAYLIST_LIMIT}`
+            );
+            break;
+          }
         } else if (result.status === "updated") {
           updated += 1;
           console.log(
             `UPDATE ${result.name}${result.isOfficial ? " [OFFICIAL]" : ""}`
           );
+        } else if (result.status === "skipped_no_contact") {
+          skippedNoContact += 1;
+          console.log(`SKIP no actionable contact: ${result.name}`);
         } else {
           skippedInvalid += 1;
           console.log("SKIP invalid playlist");
@@ -621,6 +772,10 @@ const groupsToRun = filter
         failed += 1;
         console.error("IMPORT ITEM FAILED:", error);
       }
+    }
+
+    if (dailyLimitReached) {
+      break;
     }
   }
 
@@ -631,11 +786,17 @@ const groupsToRun = filter
 
   console.log("\n=== DONE ===");
   console.log({
-    created,
+    verifiedCreatedBeforeRun: verifiedCreatedToday,
+    remainingSlotsAtStart: remainingDailySlots,
+    createdVerified: created,
+    verifiedTotalAfterRun: verifiedCreatedToday + created,
+    skippedNoContact,
     updated,
     skippedInvalid,
     failed,
     officialCount,
+    dailyLimit: DAILY_ACTIONABLE_PLAYLIST_LIMIT,
+    dailyLimitReached,
     totalPlaylistsInDb: total,
   });
 }
