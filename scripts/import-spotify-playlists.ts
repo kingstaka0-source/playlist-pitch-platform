@@ -378,11 +378,12 @@ if (!res.ok) {
 
 async function searchSpotifyPlaylistsAllPages(
   accessToken: string,
-  q: string
+  q: string,
+  maxPages = MAX_PAGES_PER_QUERY
 ): Promise<SpotifyPlaylistItem[]> {
   const all: SpotifyPlaylistItem[] = [];
 
-  for (let page = 0; page < MAX_PAGES_PER_QUERY; page++) {
+  for (let page = 0; page < maxPages; page++) {
     const offset = page * LIMIT_PER_PAGE;
 
     const items = await searchSpotifyPlaylistsPage(
@@ -688,6 +689,14 @@ async function main() {
 
   const filter = String(process.argv[2] || "").toLowerCase();
 
+  const requestedMaxPages = Number.parseInt(process.argv[3] || "", 10);
+  const maxPages =
+    Number.isFinite(requestedMaxPages) && requestedMaxPages > 0
+      ? Math.min(requestedMaxPages, MAX_PAGES_PER_QUERY)
+      : MAX_PAGES_PER_QUERY;
+
+  console.log(`Spotify pages per search: ${maxPages}/${MAX_PAGES_PER_QUERY}`);
+
 const groupsToRun = filter
   ? SEARCH_GROUPS.filter((g) =>
       g.q.toLowerCase().includes(filter) ||
@@ -706,7 +715,8 @@ const groupsToRun = filter
   try {
     items = await searchSpotifyPlaylistsAllPages(
       accessToken,
-      group.q
+      group.q,
+      maxPages
     );
   } catch (error) {
     failed += 1;
