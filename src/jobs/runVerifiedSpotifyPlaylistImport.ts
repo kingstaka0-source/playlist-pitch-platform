@@ -8,7 +8,9 @@ async function main(): Promise<void> {
   console.log("Starting verified Spotify playlist import job...");
 
   try {
-    await runVerifiedSpotifyPlaylistImport();
+    await runVerifiedSpotifyPlaylistImport({
+      maxPages: 2,
+    });
     console.log("Verified Spotify playlist import job completed.");
   } catch (error) {
     console.error("Verified Spotify playlist import job failed.");
