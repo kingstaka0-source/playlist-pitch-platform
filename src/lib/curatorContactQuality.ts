@@ -164,9 +164,46 @@ function looksLikeInstagram(url: string): boolean {
 function looksLikeSubmission(url: string): boolean {
   if (!validHttpUrl(url)) return false;
 
-  return /submit|submission|pitch|form|google\.com\/forms|forms\.gle|typeform|airtable/i.test(
-    url
-  );
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+    const pathAndQuery =
+      `${parsed.pathname}${parsed.search}`.toLowerCase();
+
+    const knownSubmissionHosts = [
+      "submithub.com",
+      "groover.co",
+      "forms.gle",
+      "typeform.com",
+      "airtable.com",
+      "sbmt.to",
+      "submityourtrack.net",
+    ];
+
+    if (
+      knownSubmissionHosts.some(
+        (domain) =>
+          host === domain || host.endsWith(`.${domain}`)
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      host === "docs.google.com" &&
+      /^\/forms(?:\/|$)/i.test(parsed.pathname)
+    ) {
+      return true;
+    }
+
+    return /(^|[\/?&=_-])(submit|submission|submissions|pitch|pitches|form)([\/?&=_-]|$)/i.test(
+      pathAndQuery
+    );
+  } catch {
+    return false;
+  }
 }
 
 function looksLikeLinktree(url: string): boolean {
@@ -189,6 +226,16 @@ function looksLikeWebsite(url: string): boolean {
       "docs.google.com",
       "typeform.com",
       "airtable.com",
+      "amazon.com",
+      "amazon.co.uk",
+      "123rf.com",
+      "youtube.be",
+      "bit.ly",
+      "t.ly",
+      "tinyurl.com",
+      "tunemymusic.com",
+      "soundcloud.com",
+      "hearthis.at",
     ];
 
     const blocked = blockedHosts.some(
