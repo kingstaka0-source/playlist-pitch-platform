@@ -26,7 +26,13 @@ export async function sendEmail(input: {
     throw new Error(result.error.message);
   }
 
+  if (!result.data?.id) {
+    throw new Error(
+      "Resend did not return an email id. Email will not be marked as sent."
+    );
+  }
+
   return {
-    messageId: result.data?.id,
+    messageId: result.data.id,
   };
 }

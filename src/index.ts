@@ -17,6 +17,7 @@ import { dashboard } from "./routes/dashboard";
 import { billing } from "./routes/billing";
 import { spotifyAuth } from "./routes/spotifyAuth";
 import { stripeWebhookHandler } from "./routes/stripeWebhooks";
+import { resendWebhookHandler } from "./routes/resendWebhooks";
 import { legal } from "./routes/legal";
 import { matchJobs } from "./routes/matchJobs";
 import { requireLegal } from "./legalGate";
@@ -115,8 +116,8 @@ const allowedOrigins = [
   "https://app.tunereach.app",
 
   "http://localhost:3000",
-"https://tunereach.app",
-"https://www.tunereach.app",
+  "https://tunereach.app",
+  "https://www.tunereach.app",
 
   String(process.env.FRONTEND_URL || "").trim(),
 ].filter(Boolean);
@@ -136,6 +137,12 @@ app.post(
   "/webhooks/stripe",
   express.raw({ type: "application/json" }),
   stripeWebhookHandler
+);
+
+app.post(
+  "/webhooks/resend",
+  express.raw({ type: "application/json" }),
+  resendWebhookHandler
 );
 
 app.use(clerkMiddleware());
@@ -241,7 +248,7 @@ app.use(followups);
 
 app.use("/campaigns", requireCurrentArtist);
 app.use("/campaigns", campaigns);
- 
+
 
 console.log("AUTH ROUTES REGISTERED");
 
@@ -286,12 +293,12 @@ app.get("/admin/cleanup-edm", async (_req, res) => {
 
       const pitchesDeleted = matchIds.length
         ? await prisma.pitch.deleteMany({
-            where: {
-              matchId: {
-                in: matchIds,
-              },
+          where: {
+            matchId: {
+              in: matchIds,
             },
-          })
+          },
+        })
         : { count: 0 };
 
       const matchesDeleted = await prisma.match.deleteMany({

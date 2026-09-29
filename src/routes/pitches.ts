@@ -159,10 +159,10 @@ router.get("/", async (req, res) => {
       typeof req.query.matchId === "string" ? req.query.matchId.trim() : "";
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     if (!trackId && !matchId) {
       return res.status(400).json({
@@ -176,20 +176,20 @@ router.get("/", async (req, res) => {
         ...(matchId ? { matchId } : {}),
         ...(trackId
           ? {
-              match: {
-                trackId,
-                track: {
-                  artistId,
-                },
+            match: {
+              trackId,
+              track: {
+                artistId,
               },
-            }
+            },
+          }
           : {
-              match: {
-                track: {
-                  artistId,
-                },
+            match: {
+              track: {
+                artistId,
               },
-            }),
+            },
+          }),
       },
       include: {
         match: {
@@ -226,10 +226,10 @@ router.get("/all", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const pitches = await prisma.pitch.findMany({
       where: {
@@ -277,17 +277,17 @@ router.post("/", async (req, res) => {
     const matchId = req.body?.matchId;
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
-if (!matchId) {
-  return res.status(400).json({
-    error: "MISSING_MATCH_ID",
-    message: "matchId is required",
-  });
-}
+    if (!matchId) {
+      return res.status(400).json({
+        error: "MISSING_MATCH_ID",
+        message: "matchId is required",
+      });
+    }
 
     const match = await prisma.match.findUnique({
       where: { id: matchId },
@@ -352,17 +352,17 @@ router.get("/:id", async (req, res) => {
     const pitchId = String(req.params.id || "").trim();
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
-if (!pitchId) {
-  return res.status(400).json({
-    error: "MISSING_PITCH_ID",
-    message: "pitch id is required",
-  });
-}
+    if (!pitchId) {
+      return res.status(400).json({
+        error: "MISSING_PITCH_ID",
+        message: "pitch id is required",
+      });
+    }
 
     const pitch = await prisma.pitch.findUnique({
       where: { id: pitchId },
@@ -415,17 +415,17 @@ router.post("/:id/email", async (req, res) => {
       typeof req.params.id === "string" ? req.params.id.trim() : "";
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
-if (!pitchId) {
-  return res.status(400).json({
-    error: "MISSING_PITCH_ID",
-    message: "pitch id is required",
-  });
-}
+    if (!pitchId) {
+      return res.status(400).json({
+        error: "MISSING_PITCH_ID",
+        message: "pitch id is required",
+      });
+    }
 
     const pitch = await prisma.pitch.findUnique({
       where: { id: pitchId },
@@ -504,23 +504,23 @@ if (!pitchId) {
     const track = pitch.match.track;
 
     console.log("TRACK:", track);
-console.log("SPOTIFY TRACK ID:", track.spotifyTrackId);
+    console.log("SPOTIFY TRACK ID:", track.spotifyTrackId);
 
-const spotifyUrl = track.spotifyTrackId
-  ? `https://open.spotify.com/track/${track.spotifyTrackId}`
-  : "";
+    const spotifyUrl = track.spotifyTrackId
+      ? `https://open.spotify.com/track/${track.spotifyTrackId}`
+      : "";
 
-const apiBaseUrl =
-  "https://playlist-pitch-platform.onrender.com";
+    const apiBaseUrl =
+      "https://playlist-pitch-platform.onrender.com";
 
-const openPixelUrl =
-  `${apiBaseUrl}/tracking/open/${pitch.id}`;
+    const openPixelUrl =
+      `${apiBaseUrl}/tracking/open/${pitch.id}`;
 
-const trackedSpotifyUrl = spotifyUrl
-  ? `${apiBaseUrl}/tracking/click/${pitch.id}`
-  : "";
+    const trackedSpotifyUrl = spotifyUrl
+      ? `${apiBaseUrl}/tracking/click/${pitch.id}`
+      : "";
 
-const finalBody = `
+    const finalBody = `
 ${pitch.body || ""}
 
 ${trackedSpotifyUrl ? `🎧 Listen on Spotify:\n${trackedSpotifyUrl}` : ""}
@@ -529,7 +529,7 @@ Tracking:
 ${openPixelUrl}
 `.trim();
 
-const htmlBody = `
+    const htmlBody = `
 <!doctype html>
 <html>
   <body style="margin:0;padding:0;background:#f6f6f6;font-family:Arial,sans-serif;color:#111;">
@@ -547,15 +547,14 @@ const htmlBody = `
           ${pitch.body || ""}
         </p>
 
-        ${
-          trackedSpotifyUrl
-            ? `<div style="margin-top:24px;">
+        ${trackedSpotifyUrl
+        ? `<div style="margin-top:24px;">
                 <a href="${trackedSpotifyUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:14px 18px;border-radius:999px;font-weight:bold;">
                   Listen on Spotify
                 </a>
               </div>`
-            : ""
-        }
+        : ""
+      }
 
         <p style="font-size:12px;color:#777;margin-top:28px;line-height:1.5;">
           Sent with TuneReach.  
@@ -570,44 +569,47 @@ const htmlBody = `
 
 
 
-const emailResult = await resend.emails.send({
-  from,
-  to,
-  subject: pitch.subject || `Track suggestion: ${track.title}`,
-  text: finalBody.trim(),
-  html: htmlBody,
-});
+    const emailResult = await resend.emails.send({
+      from,
+      to,
+      subject: pitch.subject || `Track suggestion: ${track.title}`,
+      text: finalBody.trim(),
+      html: htmlBody,
+    });
 
-console.log("RESEND EMAIL RESULT:", {
-  pitchId: pitch.id,
-  from,
-  to,
-  data: emailResult.data,
-  error: emailResult.error,
-});
+    console.log("RESEND EMAIL RESULT:", {
+      pitchId: pitch.id,
+      from,
+      to,
+      data: emailResult.data,
+      error: emailResult.error,
+    });
 
-if (emailResult.error) {
-  throw new Error(
-    `Resend failed: ${
-      emailResult.error.message || JSON.stringify(emailResult.error)
-    }`
-  );
-}
+    if (emailResult.error) {
+      throw new Error(
+        `Resend failed: ${emailResult.error.message || JSON.stringify(emailResult.error)
+        }`
+      );
+    }
 
-if (!emailResult.data?.id) {
-  throw new Error(
-    "Resend did not return an email id. Pitch will not be marked as SENT."
-  );
-}
+    if (!emailResult.data?.id) {
+      throw new Error(
+        "Resend did not return an email id. Pitch will not be marked as SENT."
+      );
+    }
 
     const updated = await prisma.pitch.update({
-  where: { id: pitch.id },
-  data: {
-    status: "SENT",
-    sentAt: pitch.sentAt ?? new Date(),
-    sentTo: to,
-  },
-});
+      where: { id: pitch.id },
+      data: {
+        status: "SENT",
+        sentAt: pitch.sentAt ?? new Date(),
+        sentTo: to,
+        providerMessageId: emailResult.data.id,
+        deliveryStatus: "SENT",
+        deliveredAt: null,
+        deliveryError: null,
+      },
+    });
 
     return res.json({
       ok: true,
@@ -631,43 +633,43 @@ router.post("/launch-campaign", async (req, res) => {
   try {
     const artistId = getArtistId(res);
     const trackId =
-  typeof req.body?.trackId === "string"
-    ? req.body.trackId.trim()
-    : "";
+      typeof req.body?.trackId === "string"
+        ? req.body.trackId.trim()
+        : "";
 
-const matchIds = Array.isArray(req.body?.matchIds)
-  ? req.body.matchIds
-      .filter((id: unknown): id is string => typeof id === "string")
-      .map((id: string) => id.trim())
-      .filter(Boolean)
-  : [];
+    const matchIds = Array.isArray(req.body?.matchIds)
+      ? req.body.matchIds
+        .filter((id: unknown): id is string => typeof id === "string")
+        .map((id: string) => id.trim())
+        .filter(Boolean)
+      : [];
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
-if (!trackId) {
-  return res.status(400).json({
-    error: "MISSING_TRACK_ID",
-    message: "trackId is required",
-  });
-}
+    if (!trackId) {
+      return res.status(400).json({
+        error: "MISSING_TRACK_ID",
+        message: "trackId is required",
+      });
+    }
 
-if (matchIds.length === 0) {
-  return res.status(400).json({
-    error: "NO_MATCHES_SELECTED",
-    message: "Select at least one playlist before launching a campaign.",
-  });
-}
+    if (matchIds.length === 0) {
+      return res.status(400).json({
+        error: "NO_MATCHES_SELECTED",
+        message: "Select at least one playlist before launching a campaign.",
+      });
+    }
 
-if (matchIds.length > 50) {
-  return res.status(400).json({
-    error: "TOO_MANY_MATCHES_SELECTED",
-    message: "A maximum of 50 playlists can be selected per campaign.",
-  });
-}
+    if (matchIds.length > 50) {
+      return res.status(400).json({
+        error: "TOO_MANY_MATCHES_SELECTED",
+        message: "A maximum of 50 playlists can be selected per campaign.",
+      });
+    }
 
     const usage = await getUsageOr404(artistId);
 
@@ -684,247 +686,246 @@ if (matchIds.length > 50) {
     }
 
     if (!resend) {
-  return res.status(500).json({
-    error: "RESEND_NOT_CONFIGURED",
-    message: "RESEND_API_KEY is missing",
-  });
-}
+      return res.status(500).json({
+        error: "RESEND_NOT_CONFIGURED",
+        message: "RESEND_API_KEY is missing",
+      });
+    }
 
-const from = String(process.env.EMAIL_FROM || "").trim();
+    const from = String(process.env.EMAIL_FROM || "").trim();
 
-if (!from) {
-  return res.status(500).json({
-    error: "EMAIL_FROM_MISSING",
-    message: "EMAIL_FROM is missing",
-  });
-}
+    if (!from) {
+      return res.status(500).json({
+        error: "EMAIL_FROM_MISSING",
+        message: "EMAIL_FROM is missing",
+      });
+    }
 
     const matches = await prisma.match.findMany({
-  where: {
-    id: {
-      in: matchIds,
-    },
-    trackId,
-    track: {
-      artistId,
-    },
-    playlist: {
-      curator: {
-        email: { not: null },
-        contactMethod: "EMAIL",
-        consent: true,
-        contactConfidence: { gte: 60 },
+      where: {
+        id: {
+          in: matchIds,
+        },
+        trackId,
+        track: {
+          artistId,
+        },
+        playlist: {
+          curator: {
+            email: { not: null },
+            contactMethod: "EMAIL",
+            consent: true,
+            contactConfidence: { gte: 60 },
+          },
+        },
       },
-    },
-  },
-  include: {
-    track: true,
-    playlist: {
       include: {
-        curator: true,
+        track: true,
+        playlist: {
+          include: {
+            curator: true,
+          },
+        },
+        pitch: true,
       },
-    },
-    pitch: true,
-  },
-  orderBy: {
-    fitScore: "desc",
-  },
-});
-
-   let generated = 0;
-let sent = 0;
-let skippedAlreadySent = 0;
-let skippedNoEmail = 0;
-let skippedFakeEmail = 0;
-let failed = 0;
-
-// =====================================
-// CREATE CAMPAIGN FIRST
-// =====================================
-
-const campaignHistory = await prisma.campaignHistory.create({
-  data: {
-    trackId,
-
-    matchesCount: matches.length,
-    placementsCount: 0,
-    successRate: 0,
-
-    selectedPlaylists: matchIds.length,
-    generatedPitches: 0,
-    emailsSent: 0,
-
-    skippedAlreadySent: 0,
-    skippedNoEmail: 0,
-    skippedFakeEmail: 0,
-    failed: 0,
-
-    status: "RUNNING",
-
-    items: {
-      create: matches.map((match) => ({
-        matchId: match.id,
-        pitchId: match.pitch?.id ?? null,
-      })),
-    },
-  },
-  include: {
-    items: true,
-  },
-});
-
-const campaignItemByMatchId = new Map(
-  campaignHistory.items.map((item) => [
-    item.matchId,
-    item,
-  ]),
-);
-
-// =====================================
-// PROCESS SELECTED MATCHES
-// =====================================
-
-for (const match of matches) {
-  try {
-    const curator = match.playlist?.curator;
-
-    const campaignItem =
-      campaignItemByMatchId.get(match.id);
-
-    if (!campaignItem) {
-      failed++;
-      console.error(
-        "CAMPAIGN_ITEM_NOT_FOUND",
-        match.id,
-      );
-      continue;
-    }
-
-    if (!canEmailCurator(curator)) {
-      skippedNoEmail++;
-      continue;
-    }
-
-    const to = resolveRecipient(curator?.email);
-
-    if (!to) {
-      skippedNoEmail++;
-      continue;
-    }
-
-    if (isReservedExampleEmail(to)) {
-  skippedFakeEmail++;
-
-  await prisma.campaignEvent.create({
-    data: {
-      campaignId: campaignHistory.id,
-      campaignItemId: campaignItem.id,
-      pitchId: match.pitch?.id ?? null,
-      matchId: match.id,
-      type: "SKIPPED_FAKE_EMAIL",
-      metadata: {
-        email: to,
-        reason: "Reserved example email address",
+      orderBy: {
+        fitScore: "desc",
       },
-    },
-  });
+    });
 
-  console.log("SKIPPED TEST EMAIL:", to);
-  continue;
-}
+    let generated = 0;
+    let sent = 0;
+    let skippedAlreadySent = 0;
+    let skippedNoEmail = 0;
+    let skippedFakeEmail = 0;
+    let failed = 0;
 
-    if (isReservedExampleEmail(to)) {
-      skippedFakeEmail++;
+    // =====================================
+    // CREATE CAMPAIGN FIRST
+    // =====================================
 
-      console.log(
-        "SKIPPED TEST EMAIL:",
-        to,
-      );
+    const campaignHistory = await prisma.campaignHistory.create({
+      data: {
+        trackId,
 
-      continue;
-    }
+        matchesCount: matches.length,
+        placementsCount: 0,
+        successRate: 0,
 
-    // Already sent before this campaign:
-    // do not send again and do not create a new SENT event.
-    if (match.pitch?.status === "SENT") {
-      skippedAlreadySent++;
-      continue;
-    }
+        selectedPlaylists: matchIds.length,
+        generatedPitches: 0,
+        emailsSent: 0,
 
-    let pitch = match.pitch;
+        skippedAlreadySent: 0,
+        skippedNoEmail: 0,
+        skippedFakeEmail: 0,
+        failed: 0,
 
-    // ===================================
-    // GENERATE PITCH WHEN NEEDED
-    // ===================================
+        status: "RUNNING",
 
-    if (!pitch) {
-      const aiPitch =
-        await buildAiPitchForMatch(
-          match,
-          "EMAIL",
-        );
-
-      pitch = await prisma.pitch.create({
-        data: {
-          matchId: match.id,
-          subject: aiPitch.subject,
-          body: aiPitch.body,
-          status: "DRAFT",
-          channel: "EMAIL",
-          sentTo: to,
+        items: {
+          create: matches.map((match) => ({
+            matchId: match.id,
+            pitchId: match.pitch?.id ?? null,
+          })),
         },
-      });
+      },
+      include: {
+        items: true,
+      },
+    });
 
-      generated++;
+    const campaignItemByMatchId = new Map(
+      campaignHistory.items.map((item) => [
+        item.matchId,
+        item,
+      ]),
+    );
 
-      // Connect newly created pitch to this campaign item.
-      await prisma.campaignHistoryItem.update({
-        where: {
-          id: campaignItem.id,
-        },
-        data: {
-          pitchId: pitch.id,
-        },
-      });
-    }
+    // =====================================
+    // PROCESS SELECTED MATCHES
+    // =====================================
 
-    // ===================================
-    // BUILD EMAIL
-    // ===================================
+    for (const match of matches) {
+      try {
+        const curator = match.playlist?.curator;
 
-    const track = match.track;
+        const campaignItem =
+          campaignItemByMatchId.get(match.id);
 
-    const spotifyUrl = track.spotifyTrackId
-      ? `https://open.spotify.com/track/${track.spotifyTrackId}`
-      : "";
+        if (!campaignItem) {
+          failed++;
+          console.error(
+            "CAMPAIGN_ITEM_NOT_FOUND",
+            match.id,
+          );
+          continue;
+        }
 
-      const apiBaseUrl =
-  "https://playlist-pitch-platform.onrender.com";
+        if (!canEmailCurator(curator)) {
+          skippedNoEmail++;
+          continue;
+        }
 
-    const openPixelUrl =
-  `${apiBaseUrl}/tracking/open/${pitch.id}` +
-  `?campaignId=${encodeURIComponent(campaignHistory.id)}` +
-  `&campaignItemId=${encodeURIComponent(campaignItem.id)}` +
-  `&matchId=${encodeURIComponent(match.id)}`;
+        const to = resolveRecipient(curator?.email);
 
-    const trackedSpotifyUrl = spotifyUrl
-  ? `${apiBaseUrl}/tracking/click/${pitch.id}` +
-    `?campaignId=${encodeURIComponent(campaignHistory.id)}` +
-    `&campaignItemId=${encodeURIComponent(campaignItem.id)}` +
-    `&matchId=${encodeURIComponent(match.id)}`
-  : "";
+        if (!to) {
+          skippedNoEmail++;
+          continue;
+        }
 
-    const finalBody = `
+        if (isReservedExampleEmail(to)) {
+          skippedFakeEmail++;
+
+          await prisma.campaignEvent.create({
+            data: {
+              campaignId: campaignHistory.id,
+              campaignItemId: campaignItem.id,
+              pitchId: match.pitch?.id ?? null,
+              matchId: match.id,
+              type: "SKIPPED_FAKE_EMAIL",
+              metadata: {
+                email: to,
+                reason: "Reserved example email address",
+              },
+            },
+          });
+
+          console.log("SKIPPED TEST EMAIL:", to);
+          continue;
+        }
+
+        if (isReservedExampleEmail(to)) {
+          skippedFakeEmail++;
+
+          console.log(
+            "SKIPPED TEST EMAIL:",
+            to,
+          );
+
+          continue;
+        }
+
+        // Already sent before this campaign:
+        // do not send again and do not create a new SENT event.
+        if (match.pitch?.status === "SENT") {
+          skippedAlreadySent++;
+          continue;
+        }
+
+        let pitch = match.pitch;
+
+        // ===================================
+        // GENERATE PITCH WHEN NEEDED
+        // ===================================
+
+        if (!pitch) {
+          const aiPitch =
+            await buildAiPitchForMatch(
+              match,
+              "EMAIL",
+            );
+
+          pitch = await prisma.pitch.create({
+            data: {
+              matchId: match.id,
+              subject: aiPitch.subject,
+              body: aiPitch.body,
+              status: "DRAFT",
+              channel: "EMAIL",
+              sentTo: to,
+            },
+          });
+
+          generated++;
+
+          // Connect newly created pitch to this campaign item.
+          await prisma.campaignHistoryItem.update({
+            where: {
+              id: campaignItem.id,
+            },
+            data: {
+              pitchId: pitch.id,
+            },
+          });
+        }
+
+        // ===================================
+        // BUILD EMAIL
+        // ===================================
+
+        const track = match.track;
+
+        const spotifyUrl = track.spotifyTrackId
+          ? `https://open.spotify.com/track/${track.spotifyTrackId}`
+          : "";
+
+        const apiBaseUrl =
+          "https://playlist-pitch-platform.onrender.com";
+
+        const openPixelUrl =
+          `${apiBaseUrl}/tracking/open/${pitch.id}` +
+          `?campaignId=${encodeURIComponent(campaignHistory.id)}` +
+          `&campaignItemId=${encodeURIComponent(campaignItem.id)}` +
+          `&matchId=${encodeURIComponent(match.id)}`;
+
+        const trackedSpotifyUrl = spotifyUrl
+          ? `${apiBaseUrl}/tracking/click/${pitch.id}` +
+          `?campaignId=${encodeURIComponent(campaignHistory.id)}` +
+          `&campaignItemId=${encodeURIComponent(campaignItem.id)}` +
+          `&matchId=${encodeURIComponent(match.id)}`
+          : "";
+
+        const finalBody = `
 ${pitch.body || ""}
 
-${
-  trackedSpotifyUrl
-    ? `Listen on Spotify:\n${trackedSpotifyUrl}`
-    : ""
-}
+${trackedSpotifyUrl
+            ? `Listen on Spotify:\n${trackedSpotifyUrl}`
+            : ""
+          }
 `.trim();
 
-    const htmlBody = `
+        const htmlBody = `
 <!doctype html>
 <html>
   <body style="margin:0;padding:0;background:#f6f6f6;font-family:Arial,sans-serif;color:#111;">
@@ -936,9 +937,8 @@ ${
         </div>
 
         <h1 style="font-size:22px;line-height:1.3;margin:0 0 12px;">
-          ${
-            pitch.subject ||
-            `Track suggestion: ${track.title}`
+          ${pitch.subject ||
+          `Track suggestion: ${track.title}`
           }
         </h1>
 
@@ -946,8 +946,7 @@ ${
           ${pitch.body || ""}
         </p>
 
-        ${
-          trackedSpotifyUrl
+        ${trackedSpotifyUrl
             ? `<div style="margin-top:24px;">
                 <a
                   href="${trackedSpotifyUrl}"
@@ -957,7 +956,7 @@ ${
                 </a>
               </div>`
             : ""
-        }
+          }
 
         <p style="font-size:12px;color:#777;margin-top:28px;line-height:1.5;">
           Sent with TuneReach.
@@ -977,152 +976,155 @@ ${
 </html>
 `;
 
-    console.log(
-      "========== CAMPAIGN EMAIL ==========",
-    );
-    console.log("CAMPAIGN:", campaignHistory.id);
-    console.log("MATCH:", match.id);
-    console.log("TO:", to);
-    console.log("SUBJECT:", pitch.subject);
+        console.log(
+          "========== CAMPAIGN EMAIL ==========",
+        );
+        console.log("CAMPAIGN:", campaignHistory.id);
+        console.log("MATCH:", match.id);
+        console.log("TO:", to);
+        console.log("SUBJECT:", pitch.subject);
 
-    // ===================================
-    // SEND EMAIL
-    // ===================================
+        // ===================================
+        // SEND EMAIL
+        // ===================================
 
-    const emailResult = await resend.emails.send({
-  from,
-  to,
-  subject: pitch.subject || `Track suggestion: ${track.title}`,
-  text: finalBody.trim(),
-  html: htmlBody,
-});
+        const emailResult = await resend.emails.send({
+          from,
+          to,
+          subject: pitch.subject || `Track suggestion: ${track.title}`,
+          text: finalBody.trim(),
+          html: htmlBody,
+        });
 
-console.log("RESEND CAMPAIGN EMAIL RESULT:", {
-  campaignId: campaignHistory.id,
-  pitchId: pitch.id,
-  matchId: match.id,
-  from,
-  to,
-  data: emailResult.data,
-  error: emailResult.error,
-});
+        console.log("RESEND CAMPAIGN EMAIL RESULT:", {
+          campaignId: campaignHistory.id,
+          pitchId: pitch.id,
+          matchId: match.id,
+          from,
+          to,
+          data: emailResult.data,
+          error: emailResult.error,
+        });
 
-if (emailResult.error) {
-  throw new Error(
-    `Resend failed: ${
-      emailResult.error.message || JSON.stringify(emailResult.error)
-    }`
-  );
-}
+        if (emailResult.error) {
+          throw new Error(
+            `Resend failed: ${emailResult.error.message || JSON.stringify(emailResult.error)
+            }`
+          );
+        }
 
-if (!emailResult.data?.id) {
-  throw new Error(
-    "Resend did not return an email id. Pitch will not be marked as SENT."
-  );
-}
+        if (!emailResult.data?.id) {
+          throw new Error(
+            "Resend did not return an email id. Pitch will not be marked as SENT."
+          );
+        }
 
-    const sentAt =
-      pitch.sentAt ?? new Date();
+        const sentAt =
+          pitch.sentAt ?? new Date();
 
-    await prisma.pitch.update({
+        await prisma.pitch.update({
+          where: {
+            id: pitch.id,
+          },
+          data: {
+            status: "SENT",
+            sentAt,
+            sentTo: to,
+            providerMessageId: emailResult.data.id,
+            deliveryStatus: "SENT",
+            deliveredAt: null,
+            deliveryError: null,
+          },
+        });
+
+        // ===================================
+        // SAVE REAL SENT EVENT
+        // ===================================
+
+        await prisma.campaignEvent.create({
+          data: {
+            campaignId: campaignHistory.id,
+            campaignItemId: campaignItem.id,
+
+            pitchId: pitch.id,
+            matchId: match.id,
+
+            type: "SENT",
+
+            metadata: {
+              sentTo: to,
+              subject:
+                pitch.subject ||
+                `Track suggestion: ${track.title}`,
+            },
+          },
+        });
+
+        sent++;
+      } catch (error) {
+        failed++;
+
+        console.error(
+          "LAUNCH_CAMPAIGN_MATCH_FAILED",
+          match.id,
+          error,
+        );
+      }
+    }
+
+    // =====================================
+    // FINAL CAMPAIGN COUNTERS
+    // =====================================
+
+    const successRate =
+      matches.length > 0
+        ? Math.round(
+          (sent / matches.length) * 100,
+        )
+        : 0;
+
+    await prisma.campaignHistory.update({
       where: {
-        id: pitch.id,
+        id: campaignHistory.id,
       },
       data: {
-        status: "SENT",
-        sentAt,
-        sentTo: to,
+        generatedPitches: generated,
+        emailsSent: sent,
+
+        skippedAlreadySent,
+        skippedNoEmail,
+        skippedFakeEmail,
+        failed,
+
+        successRate,
+
+        status: "COMPLETED",
       },
     });
 
-    // ===================================
-    // SAVE REAL SENT EVENT
-    // ===================================
+    // =====================================
+    // RESPONSE
+    // =====================================
 
-    await prisma.campaignEvent.create({
-      data: {
-        campaignId: campaignHistory.id,
-        campaignItemId: campaignItem.id,
+    return res.json({
+      ok: true,
 
-        pitchId: pitch.id,
-        matchId: match.id,
+      campaignId: campaignHistory.id,
 
-        type: "SENT",
+      trackId,
 
-        metadata: {
-          sentTo: to,
-          subject:
-            pitch.subject ||
-            `Track suggestion: ${track.title}`,
-        },
-      },
+      selected: matchIds.length,
+      eligibleMatches: matches.length,
+
+      generated,
+      sent,
+
+      skippedAlreadySent,
+      skippedNoEmail,
+      skippedFakeEmail,
+
+      failed,
     });
-
-    sent++;
-  } catch (error) {
-    failed++;
-
-    console.error(
-      "LAUNCH_CAMPAIGN_MATCH_FAILED",
-      match.id,
-      error,
-    );
-  }
-}
-
-// =====================================
-// FINAL CAMPAIGN COUNTERS
-// =====================================
-
-const successRate =
-  matches.length > 0
-    ? Math.round(
-        (sent / matches.length) * 100,
-      )
-    : 0;
-
-await prisma.campaignHistory.update({
-  where: {
-    id: campaignHistory.id,
-  },
-  data: {
-    generatedPitches: generated,
-    emailsSent: sent,
-
-    skippedAlreadySent,
-    skippedNoEmail,
-    skippedFakeEmail,
-    failed,
-
-    successRate,
-
-    status: "COMPLETED",
-  },
-});
-
-// =====================================
-// RESPONSE
-// =====================================
-
-return res.json({
-  ok: true,
-
-  campaignId: campaignHistory.id,
-
-  trackId,
-
-  selected: matchIds.length,
-  eligibleMatches: matches.length,
-
-  generated,
-  sent,
-
-  skippedAlreadySent,
-  skippedNoEmail,
-  skippedFakeEmail,
-
-  failed,
-});
   } catch (error: any) {
     console.error("LAUNCH_CAMPAIGN_ERROR", error?.message ?? error);
     return res.status(500).json({
@@ -1139,17 +1141,17 @@ router.post("/send-all", async (req, res) => {
       typeof req.body?.trackId === "string" ? req.body.trackId.trim() : "";
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
-if (!trackId) {
-  return res.status(400).json({
-    error: "MISSING_TRACK_ID",
-    message: "trackId is required",
-  });
-}
+    if (!trackId) {
+      return res.status(400).json({
+        error: "MISSING_TRACK_ID",
+        message: "trackId is required",
+      });
+    }
 
     const usage = await getUsageOr404(artistId);
 
@@ -1228,33 +1230,33 @@ if (!trackId) {
       }
 
       if (isReservedExampleEmail(to)) {
-  
 
-  console.log(
-    "SKIPPED TEST EMAIL:",
-    to,
-  );
 
-  continue;
-}
+        console.log(
+          "SKIPPED TEST EMAIL:",
+          to,
+        );
+
+        continue;
+      }
 
       const track = pitch.match.track;
 
       const spotifyUrl = track.spotifyTrackId
-  ? `https://open.spotify.com/track/${track.spotifyTrackId}`
-  : "";
+        ? `https://open.spotify.com/track/${track.spotifyTrackId}`
+        : "";
 
-const apiBaseUrl =
-  "https://playlist-pitch-platform.onrender.com";
+      const apiBaseUrl =
+        "https://playlist-pitch-platform.onrender.com";
 
-const openPixelUrl =
-  `${apiBaseUrl}/tracking/open/${pitch.id}`;
+      const openPixelUrl =
+        `${apiBaseUrl}/tracking/open/${pitch.id}`;
 
-const trackedSpotifyUrl = spotifyUrl
-  ? `${apiBaseUrl}/tracking/click/${pitch.id}`
-  : "";
+      const trackedSpotifyUrl = spotifyUrl
+        ? `${apiBaseUrl}/tracking/click/${pitch.id}`
+        : "";
 
-const finalBody = `
+      const finalBody = `
 ${pitch.body || ""}
 
 ${trackedSpotifyUrl ? `🎧 Listen on Spotify:\n${trackedSpotifyUrl}` : ""}
@@ -1263,7 +1265,7 @@ Tracking:
 ${openPixelUrl}
 `.trim();
 
-            try {
+      try {
         const htmlBody = `
 <!doctype html>
 <html>
@@ -1282,15 +1284,14 @@ ${openPixelUrl}
           ${pitch.body || ""}
         </p>
 
-        ${
-          trackedSpotifyUrl
+        ${trackedSpotifyUrl
             ? `<div style="margin-top:24px;">
                 <a href="${trackedSpotifyUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:14px 18px;border-radius:999px;font-weight:bold;">
                   Listen on Spotify
                 </a>
               </div>`
             : ""
-        }
+          }
 
         <p style="font-size:12px;color:#777;margin-top:28px;line-height:1.5;">
           Sent with Playlist Pitch Platform.
@@ -1303,13 +1304,13 @@ ${openPixelUrl}
 </html>
 `;
 
-console.log("========== EMAIL ==========");
-console.log("TO:", to);
-console.log("FROM:", from);
-console.log("SUBJECT:", pitch.subject);
-console.log("===========================");
+        console.log("========== EMAIL ==========");
+        console.log("TO:", to);
+        console.log("FROM:", from);
+        console.log("SUBJECT:", pitch.subject);
+        console.log("===========================");
 
-                const emailResult = await resend.emails.send({
+        const emailResult = await resend.emails.send({
           from,
           to,
           subject: pitch.subject || `Track suggestion: ${track.title}`,
@@ -1327,9 +1328,8 @@ console.log("===========================");
 
         if (emailResult.error) {
           throw new Error(
-            `Resend failed: ${
-              emailResult.error.message ||
-              JSON.stringify(emailResult.error)
+            `Resend failed: ${emailResult.error.message ||
+            JSON.stringify(emailResult.error)
             }`
           );
         }
@@ -1346,9 +1346,13 @@ console.log("===========================");
             status: "SENT",
             sentAt: pitch.sentAt ?? new Date(),
             sentTo: to,
+            providerMessageId: emailResult.data.id,
+            deliveryStatus: "SENT",
+            deliveredAt: null,
+            deliveryError: null,
           },
         });
-        
+
         sent++;
       } catch (error) {
         console.error("SEND_ALL_SINGLE_EMAIL_FAILED", pitch.id, error);

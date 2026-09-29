@@ -584,6 +584,10 @@ if (!spotifyTrackId) {
               status: "SENT",
               sentAt: new Date(),
               sentTo: to,
+              providerMessageId: emailResult.messageId,
+              deliveryStatus: "SENT",
+              deliveredAt: null,
+              deliveryError: null,
             },
           });
 
@@ -805,6 +809,10 @@ if (!spotifyTrackId) {
                 status: "DRAFT",
                 sentAt: null,
                 sentTo: null,
+                providerMessageId: null,
+                deliveryStatus: null,
+                deliveredAt: null,
+                deliveryError: null,
               },
             });
           }
@@ -822,6 +830,10 @@ if (!spotifyTrackId) {
               status: "SENT",
               sentAt: new Date(),
               sentTo: to,
+              providerMessageId: emailResult.messageId,
+              deliveryStatus: "SENT",
+              deliveredAt: null,
+              deliveryError: null,
             },
           });
 
@@ -973,6 +985,10 @@ if (!spotifyTrackId) {
               status: "SENT",
               sentAt: new Date(),
               sentTo: to,
+              providerMessageId: emailResult.messageId,
+              deliveryStatus: "SENT",
+              deliveredAt: null,
+              deliveryError: null,
             },
           });
 
@@ -1243,6 +1259,10 @@ tracks.get("/tracks/:id/placements", async (req, res) => {
           status: "DRAFT",
           sentAt: null,
           sentTo: null,
+          providerMessageId: null,
+          deliveryStatus: null,
+          deliveredAt: null,
+          deliveryError: null,
         },
       });
 

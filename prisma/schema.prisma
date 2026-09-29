@@ -208,29 +208,33 @@ enum CampaignEventType {
 }
 
 model Pitch {
-  id               String      @id @default(cuid())
-  matchId          String      @unique
-  subject          String
-  body             String
-  channel          Channel
-  status           PitchStatus @default(DRAFT)
-  createdAt        DateTime    @default(now())
-  sentAt           DateTime?
-  sentTo           String?
-  updatedAt        DateTime    @updatedAt
-  playlistDetected Boolean     @default(false)
-  playlistedAt     DateTime?
-  clickCount       Int         @default(0)
-  lastClickedAt    DateTime?
-  lastOpenedAt     DateTime?
-  lastRepliedAt    DateTime?
-  negativeReply    Boolean?
-  openCount        Int         @default(0)
-  positiveReply    Boolean?
-  replyCount       Int         @default(0)
-  followUpSent     Boolean     @default(false)
-  followUpSentAt   DateTime?
-  match            Match       @relation(fields: [matchId], references: [id])
+  id                String          @id @default(cuid())
+  matchId           String          @unique
+  subject           String
+  body              String
+  channel           Channel
+  status            PitchStatus     @default(DRAFT)
+  createdAt         DateTime        @default(now())
+  sentAt            DateTime?
+  sentTo            String?
+  providerMessageId String?         @unique
+  deliveryStatus    DeliveryStatus?
+  deliveredAt       DateTime?
+  deliveryError     String?
+  updatedAt         DateTime        @updatedAt
+  playlistDetected  Boolean         @default(false)
+  playlistedAt      DateTime?
+  clickCount        Int             @default(0)
+  lastClickedAt     DateTime?
+  lastOpenedAt      DateTime?
+  lastRepliedAt     DateTime?
+  negativeReply     Boolean?
+  openCount         Int             @default(0)
+  positiveReply     Boolean?
+  replyCount        Int             @default(0)
+  followUpSent      Boolean         @default(false)
+  followUpSentAt    DateTime?
+  match             Match           @relation(fields: [matchId], references: [id])
 }
 
 model AgreementAcceptance {
@@ -288,6 +292,16 @@ enum PitchStatus {
   DRAFT
   QUEUED
   SENT
+}
+
+enum DeliveryStatus {
+  SENT
+  DELIVERED
+  DELIVERY_DELAYED
+  BOUNCED
+  COMPLAINED
+  FAILED
+  SUPPRESSED
 }
 
 enum Plan {
