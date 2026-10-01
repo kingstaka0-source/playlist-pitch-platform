@@ -219,7 +219,7 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
       })
     );
 
-        const allPitches = await prisma.pitch.findMany({
+    const allPitches = await prisma.pitch.findMany({
       where: {
         match: {
           track: {
@@ -228,18 +228,19 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
         },
       },
       select: {
-  id: true,
-  status: true,
-  sentTo: true,
-  playlistDetected: true,
-  createdAt: true,
+        id: true,
+        status: true,
+        deliveryStatus: true,
+        sentTo: true,
+        playlistDetected: true,
+        createdAt: true,
 
-  openCount: true,
-  clickCount: true,
-  replyCount: true,
+        openCount: true,
+        clickCount: true,
+        replyCount: true,
 
-  positiveReply: true,
-  negativeReply: true,
+        positiveReply: true,
+        negativeReply: true,
         match: {
           select: {
             track: {
@@ -262,23 +263,27 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
     });
 
     const rawTotalCampaigns = await prisma.campaignHistory.count({
-  where: {
-    trackId: {
-      in: tracks.map((t) => t.id),
-    },
-  },
-});
+      where: {
+        trackId: {
+          in: tracks.map((t) => t.id),
+        },
+      },
+    });
 
-const rawDraftCount = allPitches.filter((p) => p.status === "DRAFT").length;
-const rawQueuedCount = allPitches.filter((p) => p.status === "QUEUED").length;
-const rawSentCount = allPitches.filter((p) => p.status === "SENT").length;
+    const rawDraftCount = allPitches.filter((p) => p.status === "DRAFT").length;
+    const rawQueuedCount = allPitches.filter((p) => p.status === "QUEUED").length;
+    const rawSentCount = allPitches.filter((p) => p.status === "SENT").length;
+    const rawDeliveredCount = allPitches.filter(
+      (p) => p.deliveryStatus === "DELIVERED"
+    ).length;
 
-const isDemoArtist = artistId === "demo_tunereach_artist";
+    const isDemoArtist = artistId === "demo_tunereach_artist";
 
-const totalCampaigns = isDemoArtist ? 12 : rawTotalCampaigns;
-const draftCount = isDemoArtist ? 4 : rawDraftCount;
-const queuedCount = isDemoArtist ? 2 : rawQueuedCount;
-const sentCount = isDemoArtist ? 12 : rawSentCount;
+    const totalCampaigns = isDemoArtist ? 12 : rawTotalCampaigns;
+    const draftCount = isDemoArtist ? 4 : rawDraftCount;
+    const queuedCount = isDemoArtist ? 2 : rawQueuedCount;
+    const sentCount = isDemoArtist ? 12 : rawSentCount;
+    const deliveredCount = isDemoArtist ? 12 : rawDeliveredCount;
 
     const totalSentPitches = sentCount;
     const totalPlacements = allPitches.filter((p) => p.playlistDetected).length;
@@ -289,42 +294,42 @@ const sentCount = isDemoArtist ? 12 : rawSentCount;
         : 0;
 
     const totalOpens = allPitches.reduce(
-  (sum: number, p: any) => sum + (p.openCount || 0),
-  0
-);
+      (sum: number, p: any) => sum + (p.openCount || 0),
+      0
+    );
 
-const totalClicks = allPitches.reduce(
-  (sum: number, p: any) => sum + (p.clickCount || 0),
-  0
-);
+    const totalClicks = allPitches.reduce(
+      (sum: number, p: any) => sum + (p.clickCount || 0),
+      0
+    );
 
-const totalReplies = allPitches.reduce(
-  (sum: number, p: any) => sum + (p.replyCount || 0),
-  0
-);
+    const totalReplies = allPitches.reduce(
+      (sum: number, p: any) => sum + (p.replyCount || 0),
+      0
+    );
 
-const interestedCurators = allPitches.filter(
-  (p: any) => p.positiveReply === true
-).length;
+    const interestedCurators = allPitches.filter(
+      (p: any) => p.positiveReply === true
+    ).length;
 
-const negativeReplies = allPitches.filter(
-  (p: any) => p.negativeReply === true
-).length;
+    const negativeReplies = allPitches.filter(
+      (p: any) => p.negativeReply === true
+    ).length;
 
-const openRate =
-  totalSentPitches > 0
-    ? Math.round((totalOpens / totalSentPitches) * 100)
-    : 0;
+    const openRate =
+      totalSentPitches > 0
+        ? Math.round((totalOpens / totalSentPitches) * 100)
+        : 0;
 
-const clickRate =
-  totalSentPitches > 0
-    ? Math.round((totalClicks / totalSentPitches) * 100)
-    : 0;
+    const clickRate =
+      totalSentPitches > 0
+        ? Math.round((totalClicks / totalSentPitches) * 100)
+        : 0;
 
-const replyRate =
-  totalSentPitches > 0
-    ? Math.round((totalReplies / totalSentPitches) * 100)
-    : 0;
+    const replyRate =
+      totalSentPitches > 0
+        ? Math.round((totalReplies / totalSentPitches) * 100)
+        : 0;
 
     const trackPitchMap = new Map<
       string,
@@ -399,9 +404,9 @@ const replyRate =
       }
 
       const source =
-  isDemoArtist && pitch.sentTo === "reggaedaily@example.com"
-    ? "Reggae Daily"
-    : pitch.sentTo?.trim() || "No recipient";
+        isDemoArtist && pitch.sentTo === "reggaedaily@example.com"
+          ? "Reggae Daily"
+          : pitch.sentTo?.trim() || "No recipient";
 
       const currentSource = curatorSourceMap.get(source) ?? {
         source,
@@ -440,73 +445,73 @@ const replyRate =
       })[0] ?? null;
 
     const topCuratorSources = isDemoArtist
-  ? [
-      {
-        source: "Reggae Daily",
-        pitchCount: 6,
-        sentCount: 6,
-        placementCount: 2,
-      },
-    ]
-  : [...curatorSourceMap.values()]
-      .sort((a, b) => b.sentCount - a.sentCount)
-      .slice(0, 5);
+      ? [
+        {
+          source: "Reggae Daily",
+          pitchCount: 6,
+          sentCount: 6,
+          placementCount: 2,
+        },
+      ]
+      : [...curatorSourceMap.values()]
+        .sort((a, b) => b.sentCount - a.sentCount)
+        .slice(0, 5);
 
     const conversionFunnel = isDemoArtist
-  ? {
-      drafts: 4,
-      queued: 2,
-      sent: 12,
-      placements: totalPlacements,
-      draftToQueuedRate: 50,
-      queuedToSentRate: 100,
-      sentToPlacementRate:
-        sentCount > 0 ? Math.round((totalPlacements / sentCount) * 100) : 0,
-    }
-  : {
-      drafts: draftCount,
-      queued: queuedCount,
-      sent: sentCount,
-      placements: totalPlacements,
-      draftToQueuedRate:
-        draftCount > 0 ? Math.round((queuedCount / draftCount) * 100) : 0,
-      queuedToSentRate:
-        queuedCount > 0 ? Math.round((sentCount / queuedCount) * 100) : 0,
-      sentToPlacementRate:
-        sentCount > 0 ? Math.round((totalPlacements / sentCount) * 100) : 0,
-    };
+      ? {
+        drafts: 4,
+        queued: 2,
+        sent: 12,
+        placements: totalPlacements,
+        draftToQueuedRate: 50,
+        queuedToSentRate: 100,
+        sentToPlacementRate:
+          sentCount > 0 ? Math.round((totalPlacements / sentCount) * 100) : 0,
+      }
+      : {
+        drafts: draftCount,
+        queued: queuedCount,
+        sent: sentCount,
+        placements: totalPlacements,
+        draftToQueuedRate:
+          draftCount > 0 ? Math.round((queuedCount / draftCount) * 100) : 0,
+        queuedToSentRate:
+          queuedCount > 0 ? Math.round((sentCount / queuedCount) * 100) : 0,
+        sentToPlacementRate:
+          sentCount > 0 ? Math.round((totalPlacements / sentCount) * 100) : 0,
+      };
 
     return res.json({
       ok: true,
-      artist, 
+      artist,
 
       analytics: {
-  totalCampaigns,
-  totalSentPitches,
-  totalPlacements,
+        totalCampaigns,
+        totalSentPitches,
+        totalPlacements,
 
-  placementRate,
-  replyRate,
-  openRate,
-  clickRate,
- 
-  totalOpens,
-  totalClicks,
-  totalReplies,
+        placementRate,
+        replyRate,
+        openRate,
+        clickRate,
 
-  interestedCurators,
-  negativeReplies,
+        totalOpens,
+        totalClicks,
+        totalReplies,
 
-  draftCount,
-  queuedCount,
-  sentCount,
+        interestedCurators,
+        negativeReplies,
 
-  topPerformingTrack,
-  mostPitchedTrack,
-  bestPlaylistCategory,
-  topCuratorSources,
-  conversionFunnel,
-},
+        draftCount,
+        queuedCount,
+        sentCount,
+        deliveredCount,
+        topPerformingTrack,
+        mostPitchedTrack,
+        bestPlaylistCategory,
+        topCuratorSources,
+        conversionFunnel,
+      },
 
       legal: {
         accepted,
