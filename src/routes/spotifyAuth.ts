@@ -102,11 +102,11 @@ spotifyAuth.get("/auth/spotify", async (req, res) => {
   try {
     const artistId = getArtistId(res);
 
-if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     // check artist bestaat (optioneel maar handig)
     const artist = await prisma.artist.findUnique({ where: { id: artistId } });
@@ -204,10 +204,10 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const artist = await prisma.artist.findUnique({
       where: { id: artistId },
@@ -242,6 +242,8 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
       });
     }
 
+    const accessToken = await getValidSpotifyAccessToken(artist.id);
+
     let profile: {
       displayName?: string;
       imageUrl?: string;
@@ -252,7 +254,7 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
     try {
       const meRes = await axios.get("https://api.spotify.com/v1/me", {
         headers: {
-          Authorization: `Bearer ${artist.spotifyAccessToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         timeout: 10_000,
       });
@@ -283,12 +285,12 @@ spotifyAuth.get("/auth/spotify/status", async (req, res) => {
       },
       selectedArtist: artist.spotifyArtistId
         ? {
-            id: artist.spotifyArtistId,
-            name: artist.spotifyArtistName,
-            imageUrl: artist.spotifyArtistImageUrl,
-            followers: artist.spotifyArtistFollowers ?? 0,
-            spotifyUrl: artist.spotifyArtistUrl,
-          }
+          id: artist.spotifyArtistId,
+          name: artist.spotifyArtistName,
+          imageUrl: artist.spotifyArtistImageUrl,
+          followers: artist.spotifyArtistFollowers,
+          spotifyUrl: artist.spotifyArtistUrl,
+        }
         : null,
     });
   } catch (err: any) {
@@ -379,8 +381,8 @@ spotifyAuth.get("/auth/spotify/artist-options", async (req, res) => {
     console.error(
       "SPOTIFY ARTIST OPTIONS ERROR",
       error?.response?.data ??
-        error?.message ??
-        error
+      error?.message ??
+      error
     );
 
     return res.status(
@@ -453,8 +455,8 @@ spotifyAuth.post("/auth/spotify/select-artist", async (req, res) => {
     console.error(
       "SPOTIFY ARTIST SELECTION ERROR",
       error?.response?.data ??
-        error?.message ??
-        error
+      error?.message ??
+      error
     );
 
     return res.status(
@@ -480,11 +482,11 @@ spotifyAuth.get("/auth/spotify/discovery", async (req, res) => {
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    success: false,
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        success: false,
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const spotifyArtist =
       await discoverSpotifyArtist(artistId);
@@ -498,8 +500,8 @@ spotifyAuth.get("/auth/spotify/discovery", async (req, res) => {
     console.error(
       "SPOTIFY ARTIST DISCOVERY ERROR",
       error?.response?.data ??
-        error?.message ??
-        error
+      error?.message ??
+      error
     );
 
     const errorCode =
@@ -558,28 +560,28 @@ spotifyAuth.get("/auth/spotify/callback", async (req, res) => {
     const state = String(req.query.state || "");
 
     if (spotifyError) {
-  let artistId = "";
+      let artistId = "";
 
-  try {
-    if (state) {
-      artistId = readSpotifyState(state).artistId;
+      try {
+        if (state) {
+          artistId = readSpotifyState(state).artistId;
+        }
+      } catch {
+        // Ongeldige of verlopen state: redirect zonder artistId
+      }
+
+      const params = new URLSearchParams({
+        spotify: "cancelled",
+      });
+
+      if (artistId) {
+        params.set("artistId", artistId);
+      }
+
+      return res.redirect(
+        `${FRONTEND_URL}/onboarding/spotify?${params.toString()}`
+      );
     }
-  } catch {
-    // Ongeldige of verlopen state: redirect zonder artistId
-  }
-
-  const params = new URLSearchParams({
-    spotify: "cancelled",
-  });
-
-  if (artistId) {
-    params.set("artistId", artistId);
-  }
-
-  return res.redirect(
-    `${FRONTEND_URL}/onboarding/spotify?${params.toString()}`
-  );
-}
 
     const code = String(req.query.code || "");
 
@@ -588,16 +590,16 @@ spotifyAuth.get("/auth/spotify/callback", async (req, res) => {
 
     let artistId: string;
 
-try {
-  artistId = readSpotifyState(state).artistId;
-} catch (error: any) {
-  const code = error?.message || "INVALID_SPOTIFY_STATE";
+    try {
+      artistId = readSpotifyState(state).artistId;
+    } catch (error: any) {
+      const code = error?.message || "INVALID_SPOTIFY_STATE";
 
-  return res.status(400).json({
-    error: code,
-    message: "Spotify authorization state is invalid or expired.",
-  });
-}
+      return res.status(400).json({
+        error: code,
+        message: "Spotify authorization state is invalid or expired.",
+      });
+    }
 
     // 1) Exchange code -> tokens
     const tokenRes = await axios.post(
@@ -644,10 +646,10 @@ try {
 
     // 4) terug naar frontend
     return res.redirect(
-  `${FRONTEND_URL}/onboarding/spotify?spotify=connected&artistId=${encodeURIComponent(
-    artistId
-  )}`
-);
+      `${FRONTEND_URL}/onboarding/spotify?spotify=connected&artistId=${encodeURIComponent(
+        artistId
+      )}`
+    );
   } catch (err: any) {
     console.error("SPOTIFY CALLBACK ERROR", err?.response?.data ?? err?.message ?? err);
     return res.status(500).send("Spotify callback failed");
@@ -660,12 +662,12 @@ spotifyAuth.get(
     try {
       const artistId = getArtistId(res);
 
-if (!artistId) {
-  return res.status(401).json({
-    success: false,
-    error: "UNAUTHORIZED",
-  });
-}
+      if (!artistId) {
+        return res.status(401).json({
+          success: false,
+          error: "UNAUTHORIZED",
+        });
+      }
 
       const releases =
         await loadSpotifyReleases(artistId);
@@ -677,49 +679,49 @@ if (!artistId) {
         nextStep: "IMPORT_TRACKS",
       });
     } catch (error: any) {
-  const spotifyStatus = error?.response?.status;
-  const retryAfter =
-    error?.response?.headers?.["retry-after"];
+      const spotifyStatus = error?.response?.status;
+      const retryAfter =
+        error?.response?.headers?.["retry-after"];
 
-  console.error(
-    "SPOTIFY RELEASE LOAD ERROR",
-    {
-      status: spotifyStatus,
-      data: error?.response?.data,
-      retryAfter,
-      message: error?.message,
+      console.error(
+        "SPOTIFY RELEASE LOAD ERROR",
+        {
+          status: spotifyStatus,
+          data: error?.response?.data,
+          retryAfter,
+          message: error?.message,
+        }
+      );
+
+
+
+      if (spotifyStatus === 429) {
+        if (retryAfter) {
+          res.setHeader("Retry-After", String(retryAfter));
+        }
+
+        return res.status(429).json({
+          success: false,
+          error: "SPOTIFY_RATE_LIMITED",
+          message:
+            "Spotify rate limit is active. Do not retry until the waiting period has passed.",
+          retryAfterSeconds: retryAfter
+            ? Number(retryAfter)
+            : null,
+        });
+      }
+
+      return res.status(
+        spotifyStatus && spotifyStatus >= 400
+          ? spotifyStatus
+          : 500
+      ).json({
+        success: false,
+        error:
+          error?.message ||
+          "SPOTIFY_RELEASE_LOAD_FAILED",
+      });
     }
-  );
-
-  
-
-  if (spotifyStatus === 429) {
-    if (retryAfter) {
-      res.setHeader("Retry-After", String(retryAfter));
-    }
-
-    return res.status(429).json({
-      success: false,
-      error: "SPOTIFY_RATE_LIMITED",
-      message:
-        "Spotify rate limit is active. Do not retry until the waiting period has passed.",
-      retryAfterSeconds: retryAfter
-        ? Number(retryAfter)
-        : null,
-    });
-  }
-
-  return res.status(
-    spotifyStatus && spotifyStatus >= 400
-      ? spotifyStatus
-      : 500
-  ).json({
-    success: false,
-    error:
-      error?.message ||
-      "SPOTIFY_RELEASE_LOAD_FAILED",
-  });
-}
   }
 );
 
@@ -730,11 +732,11 @@ spotifyAuth.post(
       const artistId = getArtistId(res);
 
       if (!artistId) {
-  return res.status(401).json({
-    success: false,
-    error: "UNAUTHORIZED",
-  });
-}
+        return res.status(401).json({
+          success: false,
+          error: "UNAUTHORIZED",
+        });
+      }
 
       const result = await importSpotifyCatalog(artistId);
 
@@ -746,8 +748,8 @@ spotifyAuth.post(
       console.error(
         "SPOTIFY CATALOG IMPORT ERROR",
         error?.response?.data ??
-          error?.message ??
-          error
+        error?.message ??
+        error
       );
 
       return res.status(500).json({

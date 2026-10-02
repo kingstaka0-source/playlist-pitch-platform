@@ -35,7 +35,7 @@ export type DiscoveredSpotifyArtist = {
   name: string;
   spotifyUrl: string | null;
   imageUrl: string | null;
-  followers: number;
+  followers: number | null;
   popularity: number;
   genres: string[];
 };
@@ -95,7 +95,7 @@ export async function saveDiscoveredArtist(
     imageUrl:
       spotifyArtist.images?.[0]?.url ?? null,
     followers:
-      spotifyArtist.followers?.total ?? 0,
+      spotifyArtist.followers?.total ?? null,
     popularity:
       spotifyArtist.popularity ?? 0,
     genres:
@@ -181,9 +181,9 @@ export async function discoverSpotifyArtist(
       console.warn(
         "EXISTING SPOTIFY ARTIST FETCH FAILED",
         axiosError?.response?.data ??
-          (error instanceof Error
-            ? error.message
-            : String(error))
+        (error instanceof Error
+          ? error.message
+          : String(error))
       );
 
       /*
