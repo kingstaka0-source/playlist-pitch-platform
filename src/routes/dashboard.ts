@@ -131,6 +131,9 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
         plan: true,
         trialUntil: true,
         createdAt: true,
+        spotifyArtistName: true,
+        spotifyArtistUrl: true,
+        spotifyArtistImageUrl: true,
       },
     });
 
