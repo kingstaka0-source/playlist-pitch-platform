@@ -112,6 +112,79 @@ dashboard.get("/dashboard/stats", async (_req, res) => {
  * - legal status
  * - tracks + match counts + top matches
  */
+dashboard.patch("/dashboard/cover", async (req, res) => {
+  try {
+    const artistId = getArtistId(res);
+
+    if (!artistId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
+
+    const zoom = Number(req.body?.zoom);
+    const positionX = Number(req.body?.positionX);
+    const positionY = Number(req.body?.positionY);
+
+    if (
+      !Number.isInteger(zoom) ||
+      !Number.isInteger(positionX) ||
+      !Number.isInteger(positionY)
+    ) {
+      return res.status(400).json({
+        error: "INVALID_COVER_SETTINGS",
+      });
+    }
+
+    if (
+      zoom < 50 ||
+      zoom > 200 ||
+      positionX < 0 ||
+      positionX > 100 ||
+      positionY < 0 ||
+      positionY > 100
+    ) {
+      return res.status(400).json({
+        error: "COVER_SETTINGS_OUT_OF_RANGE",
+      });
+    }
+
+    const artist = await prisma.artist.update({
+      where: {
+        id: artistId,
+      },
+      data: {
+        dashboardCoverZoom: zoom,
+        dashboardCoverPositionX: positionX,
+        dashboardCoverPositionY: positionY,
+      },
+      select: {
+        dashboardCoverZoom: true,
+        dashboardCoverPositionX: true,
+        dashboardCoverPositionY: true,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      cover: {
+        zoom: artist.dashboardCoverZoom,
+        positionX: artist.dashboardCoverPositionX,
+        positionY: artist.dashboardCoverPositionY,
+      },
+    });
+  } catch (err: any) {
+    console.error("DASHBOARD COVER UPDATE ERROR", err?.message ?? err);
+
+    return res.status(500).json({
+      error: "dashboard cover update failed",
+    });
+  }
+});
+
+/**
+ * GET /dashboard/overview
+ */
 dashboard.get("/dashboard/overview", async (_req, res) => {
   try {
     const artistId = getArtistId(res);
@@ -134,6 +207,9 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
         spotifyArtistName: true,
         spotifyArtistUrl: true,
         spotifyArtistImageUrl: true,
+        dashboardCoverZoom: true,
+        dashboardCoverPositionX: true,
+        dashboardCoverPositionY: true,
       },
     });
 

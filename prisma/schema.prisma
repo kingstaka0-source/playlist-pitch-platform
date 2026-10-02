@@ -17,6 +17,9 @@ model Artist {
   spotifyArtistName       String?
   spotifyArtistUrl        String?
   spotifyArtistImageUrl   String?
+  dashboardCoverZoom      Int                @default(100)
+  dashboardCoverPositionX Int                @default(50)
+  dashboardCoverPositionY Int                @default(50)
   spotifyArtistFollowers  Int?
   spotifyArtistVerifiedAt DateTime?
   spotifyAccessToken      String?
