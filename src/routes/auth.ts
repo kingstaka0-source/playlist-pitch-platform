@@ -42,20 +42,42 @@ router.post("/bootstrap", async (req, res) => {
       email?.split("@")[0] ||
       "Artist";
 
-    const artist = await prisma.artist.create({
+    if (email) {
+  const existingArtistByEmail = await prisma.artist.findUnique({
+    where: { email },
+  });
+
+  if (existingArtistByEmail) {
+    const artist = await prisma.artist.update({
+      where: { id: existingArtistByEmail.id },
       data: {
         clerkUserId: userId,
-        name: displayName,
-        email,
-        plan: "FREE",
-        subscriptionStatus: "NONE",
       },
     });
 
-    return res.status(201).json({
+    return res.json({
       artist,
-      created: true,
+      created: false,
+      relinked: true,
     });
+  }
+}
+
+const artist = await prisma.artist.create({
+  data: {
+    clerkUserId: userId,
+    name: displayName,
+    email,
+    plan: "FREE",
+    subscriptionStatus: "NONE",
+  },
+});
+
+return res.status(201).json({
+  artist,
+  created: true,
+  relinked: false,
+});
   } catch (error) {
     console.error("AUTH BOOTSTRAP ERROR", error);
 
