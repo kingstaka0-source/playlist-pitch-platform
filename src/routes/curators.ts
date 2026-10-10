@@ -227,10 +227,39 @@ curators.get(
               ? "WARM"
               : "COLD";
 
+        const playlist =
+          [...curator.playlists].sort((a, b) => {
+            const bestA = Math.max(
+              0,
+              ...a.matches.map((match) => match.fitScore || 0)
+            );
+            const bestB = Math.max(
+              0,
+              ...b.matches.map((match) => match.fitScore || 0)
+            );
+            return bestB - bestA;
+          })[0] ?? null;
+
+        const playlistRules = (playlist?.rules ?? {}) as Record<string, any>;
+
         return {
           id: curator.id,
           name: curator.name,
           email: curator.email,
+          playlist: playlist
+            ? {
+                id: playlist.id,
+                name: playlist.name,
+                genres: playlist.genres,
+                followers: Number(playlistRules.spotifyFollowers ?? 0),
+                imageUrl: playlistRules.spotifyImageUrl ?? null,
+                spotifyUrl:
+                  playlist.spotifyUrl ||
+                  (playlist.spotifyPlaylistId
+                    ? `https://open.spotify.com/playlist/${playlist.spotifyPlaylistId}`
+                    : null),
+              }
+            : null,
           sent,
           opens,
           clicks,

@@ -342,6 +342,7 @@ export async function importSpotifyPlaylistForArtist(input: {
     spotifyOwnerId: playlist.owner?.id || null,
     spotifyOwnerDisplayName:
       ownerProfile?.display_name || playlist.owner?.display_name || null,
+    spotifyImageUrl: playlist.images?.[0]?.url || null,
     spotifyFollowers: playlist.followers?.total ?? null,
     spotifyTrackCount: playlist.tracks?.total ?? null,
     spotifyDescription: playlist.description || null,
