@@ -128,6 +128,7 @@ app.use(
       "http://localhost:3000",
       "https://tunereach.app",
       "https://www.tunereach.app",
+      "https://app.tunereach.app",
     ],
     credentials: true,
   }),
