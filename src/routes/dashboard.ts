@@ -254,8 +254,11 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
       select: {
         id: true,
         spotifyTrackId: true,
+        spotifyUrl: true,
         title: true,
         artists: true,
+        albumName: true,
+        albumImageUrl: true,
         durationMs: true,
         createdAt: true,
       },
