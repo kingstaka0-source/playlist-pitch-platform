@@ -337,6 +337,12 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
                 id: true,
                 name: true,
                 genres: true,
+                curator: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -488,7 +494,7 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
       const source =
         isDemoArtist && pitch.sentTo === "reggaedaily@example.com"
           ? "Reggae Daily"
-          : pitch.sentTo?.trim() || "No recipient";
+          : playlist?.curator?.name?.trim() || pitch.sentTo?.trim() || "No recipient";
 
       const currentSource = curatorSourceMap.get(source) ?? {
         source,
