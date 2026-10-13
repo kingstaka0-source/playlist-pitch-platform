@@ -256,7 +256,29 @@ router.get("/all", async (req, res) => {
       },
     });
 
-    return res.json(pitches);
+    const enrichedPitches = pitches.map((pitch) => {
+      const playlist = pitch.match?.playlist ?? null;
+      const playlistRules = (playlist?.rules ?? {}) as Record<string, any>;
+
+      return {
+        ...pitch,
+        playlistDetails: playlist
+          ? {
+              id: playlist.id,
+              name: playlist.name,
+              followers: Number(playlistRules.spotifyFollowers ?? 0),
+              imageUrl: playlistRules.spotifyImageUrl ?? null,
+              spotifyUrl:
+                playlist.spotifyUrl ||
+                (playlist.spotifyPlaylistId
+                  ? `https://open.spotify.com/playlist/${playlist.spotifyPlaylistId}`
+                  : null),
+            }
+          : null,
+      };
+    });
+
+    return res.json(enrichedPitches);
   } catch (error: any) {
     console.error("GET_ALL_PITCHES_ERROR", error?.message ?? error);
     return res.status(500).json({
