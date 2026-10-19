@@ -205,6 +205,19 @@ function getPlaylistGenreProfile(playlist: any): string[] {
   return uniqStrings([...direct, ...text]);
 }
 
+function hasRealAudioFeatures(track: any): boolean {
+  const f = track?.audioFeatures;
+
+  if (!f || typeof f !== "object") return false;
+
+  return (
+    Number.isFinite(f.danceability) &&
+    Number.isFinite(f.energy) &&
+    Number.isFinite(f.valence) &&
+    Number.isFinite(f.tempo)
+  );
+}
+
 function buildTrackVector(track: any): TrackVector {
   const f = (track.audioFeatures ?? {}) as any;
 
@@ -501,12 +514,13 @@ function buildGenreSummary(track: any, playlist: any) {
 }
 
 function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
-  const centroid = buildPlaylistCentroid(playlist);
-  const baseCosine = cosine(vec, centroid);
+  const hasAudio = hasRealAudioFeatures(track);
+  const centroid = hasAudio ? buildPlaylistCentroid(playlist) : null;
+  const baseCosine = centroid ? cosine(vec, centroid) : 0;
 
   const genreScore = genreAffinityScore(track, playlist);
 
-  const rulePenalty = penaltyForRules(vec, playlist);
+  const rulePenalty = hasAudio ? penaltyForRules(vec, playlist) : 0;
   const mismatchPenalty = textMismatchPenalty(playlist);
   const titlePenalty = genericTitlePenalty(
     String(playlist?.name ?? ""),
@@ -532,7 +546,7 @@ function computeFinalScore(track: any, playlist: any, vec: TrackVector) {
   // Genre relevance should be the strongest differentiator.
   let score =
     20 +
-    baseCosine * 35 +
+    (hasAudio ? baseCosine * 35 : 0) +
     genreScore +
     specificity +
     contactability;
@@ -597,10 +611,13 @@ export async function computeMatches(trackId: string) {
   console.log(
     "computeMatches: playlists=",
     playlists.length,
-    "tempo=",
-    Math.round(vec[3] * 200),
-    "energy=",
-    vec[1],
+    "audioFeatures=",
+    hasRealAudioFeatures(track)
+      ? {
+          tempo: Math.round(vec[3] * 200),
+          energy: vec[1],
+        }
+      : "unavailable",
     "trackGenres=",
     getTrackGenreProfile(track)
   );
@@ -626,8 +643,12 @@ export async function computeMatches(trackId: string) {
       !!pl?.curator?.submissionUrl;
 
     const explanationParts = [
-      `Tempo ~${Math.round(vec[3] * 200)} BPM`,
-      `Energy ~${vec[1].toFixed(2)}`,
+      ...(hasRealAudioFeatures(track)
+        ? [
+            `Tempo ~${Math.round(vec[3] * 200)} BPM`,
+            `Energy ~${vec[1].toFixed(2)}`,
+          ]
+        : []),
       buildGenreSummary(track, pl),
       buildContactSummary(pl),
     ];
