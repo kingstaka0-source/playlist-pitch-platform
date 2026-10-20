@@ -678,30 +678,39 @@ console.log("MATCHING STEP 2: top selected", {
   top: top.length,
 });
 
-console.log("MATCHING STEP 3: starting database upserts");
+console.log("MATCHING STEP 3: switching active match set");
 
-const created = await Promise.all(
-  top.map((t) =>
-    prisma.match.upsert({
-      where: {
-        trackId_playlistId: {
+const created = await prisma.$transaction(async (tx) => {
+  await tx.match.updateMany({
+    where: { trackId },
+    data: { isActive: false },
+  });
+
+  return Promise.all(
+    top.map((t) =>
+      tx.match.upsert({
+        where: {
+          trackId_playlistId: {
+            trackId,
+            playlistId: t.playlistId,
+          },
+        },
+        update: {
+          fitScore: t.score,
+          explanation: t.explanation,
+          isActive: true,
+        },
+        create: {
           trackId,
           playlistId: t.playlistId,
+          fitScore: t.score,
+          explanation: t.explanation,
+          isActive: true,
         },
-      },
-      update: {
-        fitScore: t.score,
-        explanation: t.explanation,
-      },
-      create: {
-        trackId,
-        playlistId: t.playlistId,
-        fitScore: t.score,
-        explanation: t.explanation,
-      },
-    }),
-  ),
-);
+      }),
+    ),
+  );
+});
 
 console.log("MATCHING STEP 4: database upserts finished", {
   created: created.length,

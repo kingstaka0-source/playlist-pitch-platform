@@ -270,11 +270,13 @@ dashboard.get("/dashboard/overview", async (_req, res) => {
           prisma.match.count({
             where: {
               trackId: t.id,
+              isActive: true,
             },
           }),
           prisma.match.findMany({
             where: {
               trackId: t.id,
+              isActive: true,
             },
             orderBy: { fitScore: "desc" },
             take: 5,

@@ -127,6 +127,7 @@ if (!ownedTrack) {
 const list = await prisma.match.findMany({
   where: {
     trackId,
+    isActive: true,
   },
   include: {
     playlist: {

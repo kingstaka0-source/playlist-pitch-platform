@@ -101,7 +101,7 @@
         genres: true,
         _count: {
           select: {
-            matches: true,
+            matches: { where: { isActive: true } },
           },
         },
       },
@@ -194,7 +194,7 @@
   include: {
     _count: {
       select: {
-        matches: true,
+        matches: { where: { isActive: true } },
       },
     },
     },
@@ -681,6 +681,7 @@ if (!spotifyTrackId) {
       const matches = await prisma.match.findMany({
     where: {
       trackId: resolvedTrackId,
+      isActive: true,
       playlist: {
         curator: {
           email: { not: null },
@@ -1069,6 +1070,7 @@ if (!spotifyTrackId) {
       const matches = await prisma.match.findMany({
         where: {
           trackId: owned.track.id,
+          isActive: true,
           playlist: {
             spotifyPlaylistId: {
               not: null,
@@ -1198,6 +1200,7 @@ tracks.get("/tracks/:id/placements", async (req, res) => {
     const matches = await prisma.match.findMany({
       where: {
         trackId: owned.track.id,
+        isActive: true,
         track: {
           artistId,
         },
