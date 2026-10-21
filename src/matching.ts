@@ -602,7 +602,15 @@ export async function computeMatches(trackId: string) {
 
   const vec = buildTrackVector(track);
 
-    const playlists = await prisma.playlist.findMany({
+  const playlists = await prisma.playlist.findMany({
+    where: {
+      AND: [
+        { NOT: { spotifyPlaylistId: { startsWith: "demo_" } } },
+        { NOT: { spotifyPlaylistId: { startsWith: "test_" } } },
+        { NOT: { name: "Reggae Test Playlist" } },
+        { NOT: { curator: { name: "Test Curator" } } },
+      ],
+    },
     include: {
       curator: true,
     },
