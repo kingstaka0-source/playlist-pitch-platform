@@ -24,7 +24,7 @@ export function generatePitch({
   const vibeLine =
     tempo && tempo > 0
       ? `around ${Math.round(tempo)} BPM with a solid groove`
-      : "with a deep roots groove";
+      : "a deep roots groove";
 
   return {
     subject: `${artistName} — ${trackTitle} (for ${playlist})`,
