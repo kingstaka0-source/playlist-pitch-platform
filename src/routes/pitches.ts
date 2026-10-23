@@ -98,12 +98,21 @@ function denyPaidRequired(res: any, usage: any, message: string) {
 async function buildAiPitchForMatch(match: any, channel: string) {
   const artist = await prisma.artist.findUnique({
     where: { id: match.track.artistId },
-    select: { name: true },
+    select: {
+      name: true,
+      spotifyArtistName: true,
+    },
   });
 
-  const artistName = artist?.name || "Unknown Artist";
   const trackTitle = match.track?.title || "Untitled Track";
-  const trackArtists = match.track?.artists || [];
+  const trackArtists = Array.isArray(match.track?.artists)
+    ? match.track.artists
+    : [];
+
+  const artistName =
+    trackArtists.length > 0
+      ? trackArtists.join(", ")
+      : artist?.spotifyArtistName || artist?.name || "Unknown Artist";
   const playlistName = match.playlist?.name || "Playlist";
   const curatorName = match.playlist?.curator?.name || null;
   const playlistGenres = match.playlist?.genres || [];

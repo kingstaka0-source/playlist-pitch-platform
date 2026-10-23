@@ -63,14 +63,22 @@ router.post("/generate-and-save-pitch", async (req, res) => {
 
     const artist = await prisma.artist.findUnique({
       where: { id: String(artistId) },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        spotifyArtistName: true,
+      },
     });
 
-    const artistName = artist?.name || "Unknown Artist";
     const trackTitle = match.track?.title || "Untitled Track";
     const trackArtists = Array.isArray(match.track?.artists)
       ? match.track.artists
       : [];
+
+    const artistName =
+      trackArtists.length > 0
+        ? trackArtists.join(", ")
+        : artist?.spotifyArtistName || artist?.name || "Unknown Artist";
 
     const playlistName = match.playlist?.name || "this playlist";
     const curatorName = match.playlist?.curator?.name || null;
