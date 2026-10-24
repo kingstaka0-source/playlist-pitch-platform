@@ -83,6 +83,15 @@ model Curator {
   playlists         Playlist[]
 }
 
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String
+  source    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Playlist {
   id                String       @id @default(cuid())
   curatorId         String

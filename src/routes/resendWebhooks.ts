@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { Resend } from "resend";
 import { prisma } from "../db";
+import { normalizeCuratorEmail } from "../lib/curatorContactQuality";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -39,6 +40,27 @@ function getDeliveryError(event: ResendWebhookEvent): string | null {
   }
 
   return null;
+}
+
+async function suppressEmailAddress(
+  email: string,
+  reason: string,
+  source: string
+) {
+  const normalizedEmail = normalizeCuratorEmail(email);
+
+  await prisma.emailSuppression.upsert({
+    where: { email: normalizedEmail },
+    create: {
+      email: normalizedEmail,
+      reason,
+      source,
+    },
+    update: {
+      reason,
+      source,
+    },
+  });
 }
 
 export async function resendWebhookHandler(req: Request, res: Response) {
@@ -106,6 +128,7 @@ export async function resendWebhookHandler(req: Request, res: Response) {
     },
     select: {
       id: true,
+      sentTo: true,
     },
   });
 
@@ -162,6 +185,14 @@ export async function resendWebhookHandler(req: Request, res: Response) {
           deliveryError: getDeliveryError(event),
         },
       });
+
+      if (pitch.sentTo) {
+        await suppressEmailAddress(
+          pitch.sentTo,
+          "Recipient marked the email as spam",
+          "RESEND_COMPLAINT"
+        );
+      }
       break;
 
     case "email.failed":
@@ -184,6 +215,14 @@ export async function resendWebhookHandler(req: Request, res: Response) {
           deliveryError: getDeliveryError(event),
         },
       });
+
+      if (pitch.sentTo) {
+        await suppressEmailAddress(
+          pitch.sentTo,
+          getDeliveryError(event) || "Email suppressed by Resend",
+          "RESEND_SUPPRESSED"
+        );
+      }
       break;
 
     default:

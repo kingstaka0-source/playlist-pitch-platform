@@ -37,6 +37,25 @@ function canEmailCurator(curator: CuratorLike | null | undefined) {
   );
 }
 
+async function isEmailSuppressed(email?: string | null) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    return false;
+  }
+
+  const suppression = await prisma.emailSuppression.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return !!suppression;
+}
+
 function resolveRecipient(curatorEmail?: string | null) {
   const resendTestTo = String(process.env.RESEND_TEST_TO || "").trim();
 
@@ -273,16 +292,16 @@ router.get("/all", async (req, res) => {
         ...pitch,
         playlistDetails: playlist
           ? {
-              id: playlist.id,
-              name: playlist.name,
-              followers: Number(playlistRules.spotifyFollowers ?? 0),
-              imageUrl: playlistRules.spotifyImageUrl ?? null,
-              spotifyUrl:
-                playlist.spotifyUrl ||
-                (playlist.spotifyPlaylistId
-                  ? `https://open.spotify.com/playlist/${playlist.spotifyPlaylistId}`
-                  : null),
-            }
+            id: playlist.id,
+            name: playlist.name,
+            followers: Number(playlistRules.spotifyFollowers ?? 0),
+            imageUrl: playlistRules.spotifyImageUrl ?? null,
+            spotifyUrl:
+              playlist.spotifyUrl ||
+              (playlist.spotifyPlaylistId
+                ? `https://open.spotify.com/playlist/${playlist.spotifyPlaylistId}`
+                : null),
+          }
           : null,
       };
     });
@@ -513,6 +532,13 @@ router.post("/:id/email", async (req, res) => {
       return res.status(400).json({
         error: "CURATOR_NOT_SENDABLE",
         message: "Curator has no allowed email contact method.",
+      });
+    }
+
+    if (await isEmailSuppressed(curator?.email)) {
+      return res.status(400).json({
+        error: "EMAIL_SUPPRESSED",
+        message: "This curator email address is suppressed and cannot be emailed.",
       });
     }
 
@@ -834,6 +860,11 @@ router.post("/launch-campaign", async (req, res) => {
         }
 
         if (!canEmailCurator(curator)) {
+          skippedNoEmail++;
+          continue;
+        }
+
+        if (await isEmailSuppressed(curator?.email)) {
           skippedNoEmail++;
           continue;
         }
@@ -1250,6 +1281,12 @@ router.post("/send-all", async (req, res) => {
 
       if (!canEmailCurator(curator)) {
         skippedNoRecipient++;
+        continue;
+      }
+
+      if (await isEmailSuppressed(curator?.email)) {
+        skippedNoRecipient++;
+        console.log("SKIPPED SUPPRESSED EMAIL:", curator?.email);
         continue;
       }
 
