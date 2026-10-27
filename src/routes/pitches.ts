@@ -560,9 +560,6 @@ router.post("/:id/email", async (req, res) => {
 
     const track = pitch.match.track;
 
-    console.log("TRACK:", track);
-    console.log("SPOTIFY TRACK ID:", track.spotifyTrackId);
-
     const spotifyUrl = track.spotifyTrackId
       ? `https://open.spotify.com/track/${track.spotifyTrackId}`
       : "";
@@ -634,12 +631,9 @@ ${openPixelUrl}
       html: htmlBody,
     });
 
-    console.log("RESEND EMAIL RESULT:", {
+    console.log("RESEND_EMAIL_SENT", {
       pitchId: pitch.id,
-      from,
-      to,
-      data: emailResult.data,
-      error: emailResult.error,
+      messageId: emailResult.data?.id ?? null,
     });
 
     if (emailResult.error) {
@@ -893,17 +887,18 @@ router.post("/launch-campaign", async (req, res) => {
             },
           });
 
-          console.log("SKIPPED TEST EMAIL:", to);
+          console.log("SKIPPED_RESERVED_EMAIL", {
+            matchId: match.id,
+          });
           continue;
         }
 
         if (isReservedExampleEmail(to)) {
           skippedFakeEmail++;
 
-          console.log(
-            "SKIPPED TEST EMAIL:",
-            to,
-          );
+          console.log("SKIPPED_RESERVED_EMAIL", {
+            matchId: match.id,
+          });
 
           continue;
         }
@@ -1038,13 +1033,6 @@ ${trackedSpotifyUrl
 </html>
 `;
 
-        console.log(
-          "========== CAMPAIGN EMAIL ==========",
-        );
-        console.log("CAMPAIGN:", campaignHistory.id);
-        console.log("MATCH:", match.id);
-        console.log("TO:", to);
-        console.log("SUBJECT:", pitch.subject);
 
         // ===================================
         // SEND EMAIL
@@ -1058,14 +1046,11 @@ ${trackedSpotifyUrl
           html: htmlBody,
         });
 
-        console.log("RESEND CAMPAIGN EMAIL RESULT:", {
+        console.log("RESEND_CAMPAIGN_EMAIL_SENT", {
           campaignId: campaignHistory.id,
           pitchId: pitch.id,
           matchId: match.id,
-          from,
-          to,
-          data: emailResult.data,
-          error: emailResult.error,
+          messageId: emailResult.data?.id ?? null,
         });
 
         if (emailResult.error) {
@@ -1286,7 +1271,9 @@ router.post("/send-all", async (req, res) => {
 
       if (await isEmailSuppressed(curator?.email)) {
         skippedNoRecipient++;
-        console.log("SKIPPED SUPPRESSED EMAIL:", curator?.email);
+        console.log("SKIPPED_SUPPRESSED_EMAIL", {
+          pitchId: pitch.id,
+        });
         continue;
       }
 
@@ -1300,10 +1287,9 @@ router.post("/send-all", async (req, res) => {
       if (isReservedExampleEmail(to)) {
 
 
-        console.log(
-          "SKIPPED TEST EMAIL:",
-          to,
-        );
+        console.log("SKIPPED_RESERVED_EMAIL", {
+          pitchId: pitch.id,
+        });
 
         continue;
       }
@@ -1372,11 +1358,6 @@ ${openPixelUrl}
 </html>
 `;
 
-        console.log("========== EMAIL ==========");
-        console.log("TO:", to);
-        console.log("FROM:", from);
-        console.log("SUBJECT:", pitch.subject);
-        console.log("===========================");
 
         const emailResult = await resend.emails.send({
           from,
@@ -1386,12 +1367,9 @@ ${openPixelUrl}
           html: htmlBody,
         });
 
-        console.log("RESEND SEND-ALL EMAIL RESULT:", {
+        console.log("RESEND_SEND_ALL_EMAIL_SENT", {
           pitchId: pitch.id,
-          from,
-          to,
-          data: emailResult.data,
-          error: emailResult.error,
+          messageId: emailResult.data?.id ?? null,
         });
 
         if (emailResult.error) {
