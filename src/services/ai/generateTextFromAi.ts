@@ -10,11 +10,9 @@ export async function generateTextFromAi(prompt: string): Promise<string> {
   }
 
   try {
-    console.log("=================================");
-    console.log("AI PROMPT SENT TO MODEL");
-    console.log("=================================");
-    console.log(prompt);
-    console.log("=================================");
+    console.log("AI_REQUEST_STARTED", {
+      model: "gpt-4o-mini",
+    });
 
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -32,27 +30,24 @@ export async function generateTextFromAi(prompt: string): Promise<string> {
       ],
     });
 
-    console.log("=================================");
-    console.log("AI RAW RESPONSE RECEIVED");
-    console.log("=================================");
-    console.log(JSON.stringify(response, null, 2));
-    console.log("=================================");
-
     const text = response.choices?.[0]?.message?.content?.trim();
 
     if (!text) {
       throw new Error("Empty AI response");
     }
 
-    console.log("=================================");
-    console.log("AI TEXT CONTENT");
-    console.log("=================================");
-    console.log(text);
-    console.log("=================================");
+    console.log("AI_REQUEST_SUCCEEDED", {
+      model: response.model,
+      responseId: response.id,
+    });
 
     return text;
   } catch (error) {
-    console.error("OPENAI CALL FAILED:", error);
+    console.error("OPENAI_CALL_FAILED", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+
     throw error;
   }
 }

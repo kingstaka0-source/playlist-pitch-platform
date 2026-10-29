@@ -9,6 +9,7 @@ type PitchInput = {
   playlistName: string;
   playlistDescription?: string | null;
   playlistGenres?: string[] | null;
+  musicalMatchGenres?: string[] | null;
   channel?: "EMAIL" | "INAPP";
 };
 
@@ -24,6 +25,7 @@ export function buildPitchPrompt(input: PitchInput) {
     playlistName,
     playlistDescription,
     playlistGenres,
+    musicalMatchGenres,
     channel = "EMAIL",
   } = input;
 
@@ -35,13 +37,18 @@ export function buildPitchPrompt(input: PitchInput) {
       ? playlistGenres.join(", ")
       : "unknown";
 
-    return `
-You are an expert Spotify playlist pitching assistant for independent artists.
+  const musicalMatchText =
+    musicalMatchGenres && musicalMatchGenres.length > 0
+      ? musicalMatchGenres.join(", ")
+      : "none";
+
+  return `
+You write short, natural Spotify playlist pitches for independent artists.
 
 Your task:
-Write a short, personalized Spotify playlist pitch for a curator.
+Write a personalized curator pitch using only the information provided below.
 
-Return JSON only:
+Return valid JSON only:
 {
   "subject": "...",
   "body": "..."
@@ -49,7 +56,7 @@ Return JSON only:
 
 Pitch channel: ${channel}
 
-Track info:
+TRACK FACTS
 - Main artist/account: ${artistName}
 - Track title: ${trackTitle}
 - Credited artists: ${joinedArtists}
@@ -57,63 +64,70 @@ Track info:
 - Track mood: ${trackMood || "unknown"}
 - Track description: ${trackDescription || "none"}
 
-Playlist info:
+PLAYLIST FACTS
 - Curator name: ${curatorName || "unknown"}
 - Playlist name: ${playlistName}
 - Playlist description: ${playlistDescription || "none"}
 - Playlist genres: ${genresText}
 
-Rules:
+INTERNAL MUSICAL MATCH CONTEXT
+- Genre overlap: ${musicalMatchText}
+
+Important:
+The internal musical match context is only supporting information.
+Never mention matching systems, scores, confidence, algorithms, databases,
+email availability, submission links, or internal analysis in the pitch.
+
+Accuracy rules:
+- Use only facts provided above.
+- Never invent the track's mood, sound, instrumentation, tempo, energy, audience reaction, achievements, streams, press, playlist adds, or performance.
+- If track genre, mood, or description is unknown, do not guess it.
+- Do not turn playlist genres into track genres.
+- Playlist name and description may suggest a direction, theme, setting, or audience, but phrase such observations carefully.
+- Never claim to have listened to the playlist.
+- Never imply knowledge of individual songs in the playlist unless that information was explicitly provided.
+- Do not claim the track is a strong, perfect, natural, or obvious fit merely because an internal genre overlap exists.
+- Treat similar-looking genre names carefully. For example, reggae and reggaeton are not interchangeable.
+- If the available information does not support a specific musical claim, keep the pitch simple rather than inventing detail.
+
+Artist attribution:
+- Credited artists are the authoritative track attribution.
+- If credited artists are available, use them when describing who the track is by.
+- Do not incorrectly attribute a collaboration solely to the main artist/account.
+
+Writing style:
 - Natural, human, professional English.
-- Study the playlist name carefully and infer the likely audience and style.
-- Mention something specific about the playlist direction when possible.
-- Avoid generic genre descriptions.
-- Explain WHY the song belongs in this playlist.
-- Focus on listener experience, mood, atmosphere and audience fit.
-- Write as if a real artist personally selected this playlist.
-- Sound like someone who actually listened to the playlist.
+- Conversational and specific, not marketing copy.
+- Respectful and not pushy.
 - Reference the playlist by name naturally.
-- Prefer playlist context over genre labels.
-- Short: 80 to 130 words for EMAIL, 50 to 90 words for INAPP.
-- Do NOT mention tempo, BPM, energy, confidence score, fit score, algorithm, match score, database, or internal matching data.
-- Do NOT say "strong feedback so far" unless provided in Track description.
-- Do NOT claim the song is by ${artistName} if the credited artists are different. Use credited artists when needed.
-- Do NOT invent streams, press, playlist adds, awards, or achievements.
-- Do NOT use emojis, hashtags, bullet points, or placeholders.
-- Do NOT add a fake signature.
-- Mention why the track could fit this playlist using musical language, mood, sound, audience, or playlist direction.
 - Use the curator name once if it sounds natural.
-- Use the playlist description only if useful.
-- Keep it respectful and not pushy.
-- If the credited artists are different from the main artist/account, describe the track as being by the credited artists, not by the main artist/account.
-- Do NOT use phrases like "captivated", "beautifully blends", "resonate", "heartfelt melodies", "perfect for", or "journey".
-- Avoid dramatic or poetic language.
-- Use simple curator-style language.
-- Make it sound like a short real email, not marketing copy.
-- Do not say "I believe".
+- Prefer a concrete observation based on the playlist name or description over generic praise.
+- Explain the possible connection between the track and playlist only when supported by the supplied facts or musical match context.
+- Do not repeat genre labels unnecessarily.
+- Avoid dramatic, poetic, or exaggerated language.
+- No emojis, hashtags, bullet points, placeholders, or fake signature.
+- Do not say "I believe" or "I think".
 - Never start with "Hi there, I hope you're well".
 - Never start with "I hope this message finds you well".
-- Avoid phrases like "would fit nicely".
-- Avoid phrases like "emotional yet energetic vibe".
-- Prefer observations about the playlist over describing genres.
-- Write like an independent artist contacting a curator personally.
-- Keep the tone conversational and specific.
+- Avoid phrases such as "captivated", "beautifully blends", "resonate", "heartfelt melodies", "perfect for", "journey", "would fit nicely", "natural fit", and "emotional yet energetic vibe".
+
+Length:
+- EMAIL: 65 to 100 words.
+- INAPP: 45 to 75 words.
+- Prefer four short sentences over a long paragraph.
 
 Subject:
-Make the subject specific and simple, for example:
-"Possible fit for ${playlistName}: ${trackTitle}"
+- Keep it short and specific.
+- Include the track title and/or playlist name when natural.
+- Do not use clickbait or exaggerated claims.
+- Example structure: "${trackTitle} for ${playlistName}"
 
-Body style:
-- 1 short opening sentence referencing the playlist
-- 1 sentence describing the track naturally
-- 1 sentence explaining why listeners of this playlist may enjoy it
-- 1 polite closing sentence
-- No long paragraphs
-- Sound personal and hand-written
-- Avoid generic marketing language
-- Avoid repeating genre labels
-- Plain English
-- No poetic descriptions
-- No emotional over-selling
+Body structure:
+- One short opening sentence that references the playlist or its stated context.
+- One short sentence introducing the track and credited artist(s).
+- One short sentence explaining the possible relevance to the playlist using only supported information.
+- One polite, low-pressure closing sentence.
+- Plain English.
+- Sound hand-written.
 `.trim();
 }

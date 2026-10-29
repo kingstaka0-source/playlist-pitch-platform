@@ -17,10 +17,10 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     const artistId = String(res.locals?.artist?.id || "").trim();
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     if (!matchId) {
       return res.status(400).json({ error: "matchId is required" });
@@ -83,8 +83,30 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     const playlistName = match.playlist?.name || "this playlist";
     const curatorName = match.playlist?.curator?.name || null;
 
+    const playlistDescription = String(match.playlist?.description || "")
+      .replace(
+        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+        "[email removed]"
+      )
+      .trim();
+
     const playlistGenres = Array.isArray(match.playlist?.genres)
       ? match.playlist.genres
+      : [];
+
+    const trackGenres = Array.isArray(match.track?.genres)
+      ? match.track.genres
+      : [];
+
+    const genreOverlapMatch = String(match.explanation || "").match(
+      /(?:^|\u2022)\s*Genre overlap:\s*([^\u2022]+)/i
+    );
+
+    const musicalMatchGenres = genreOverlapMatch
+      ? genreOverlapMatch[1]
+        .split(",")
+        .map((genre) => genre.trim())
+        .filter(Boolean)
       : [];
 
     const spotifyTrackId = match.track?.spotifyTrackId;
@@ -100,36 +122,32 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     // ======================
     try {
       const prompt = buildPitchPrompt({
-  artistName,
-  trackTitle,
-  trackArtists,
+        artistName,
+        trackTitle,
+        trackArtists,
 
-  trackGenre:
-    (match.track as any)?.genre ||
-    playlistGenres?.[0] ||
-    null,
+        trackGenre:
+          trackGenres.length > 0
+            ? trackGenres.join(", ")
+            : null,
 
-  trackMood:
-    (match.track as any)?.mood ||
-    "emotional, energetic, authentic",
+        trackMood: null,
 
-  trackDescription:
-    (match.track as any)?.description ||
-    `A professional release by ${artistName}.`,
+        trackDescription: null,
 
-  curatorName,
+        curatorName,
 
-  playlistName,
+        playlistName,
 
-  playlistDescription:
-    (match.playlist as any)?.description ||
-    `Spotify playlist focused on ${playlistGenres.join(", ")}`,
+        playlistDescription:
+          playlistDescription || null,
 
-  playlistGenres,
+        playlistGenres,
+        musicalMatchGenres,
 
-  channel,
+        channel,
 
-});
+      });
 
       const aiRaw = await generateTextFromAi(prompt);
       const parsed = parseAiPitch(aiRaw);
@@ -138,16 +156,16 @@ router.post("/generate-and-save-pitch", async (req, res) => {
       body = parsed.body;
     } catch (err) {
       // ======================
-      // 🔥 FALLBACK (REGGAE STYLE)
+      // SAFE FALLBACK
       // ======================
       const fallback = generatePitch({
-  curatorName,
-  playlistName,
-  trackTitle,
-  artistName,
-  genres: playlistGenres,
-  tempo: null,
-});
+        curatorName,
+        playlistName,
+        trackTitle,
+        artistName,
+        genres: playlistGenres,
+        tempo: null,
+      });
 
       subject = fallback.subject;
       body = fallback.body;
@@ -177,7 +195,7 @@ router.post("/generate-and-save-pitch", async (req, res) => {
       body = body.slice(0, 600).trim() + "...";
     }
 
-    
+
     // ======================
     // 🔥 ALWAYS ADD SPOTIFY LINK
     // ======================
@@ -190,40 +208,40 @@ router.post("/generate-and-save-pitch", async (req, res) => {
     // ======================
     let savedPitch;
 
-if (match.pitch) {
-  if (
-    match.pitch.status === "SENT" ||
-    match.pitch.sentAt
-  ) {
-    return res.status(409).json({
-      error: "PITCH_ALREADY_SENT",
-      message:
-        "This pitch has already been sent and cannot be regenerated.",
-      pitch: match.pitch,
-    });
-  }
+    if (match.pitch) {
+      if (
+        match.pitch.status === "SENT" ||
+        match.pitch.sentAt
+      ) {
+        return res.status(409).json({
+          error: "PITCH_ALREADY_SENT",
+          message:
+            "This pitch has already been sent and cannot be regenerated.",
+          pitch: match.pitch,
+        });
+      }
 
-  savedPitch = await prisma.pitch.update({
-    where: { id: match.pitch.id },
-    data: {
-      subject,
-      body,
-      channel,
-      status: "DRAFT",
-    },
-  });
-} else {
-  savedPitch = await prisma.pitch.create({
-    data: {
-      matchId: match.id,
-      subject,
-      body,
-      status: "DRAFT",
-      channel,
-      sentTo: match.playlist?.curator?.email || null,
-    },
-  });
-}
+      savedPitch = await prisma.pitch.update({
+        where: { id: match.pitch.id },
+        data: {
+          subject,
+          body,
+          channel,
+          status: "DRAFT",
+        },
+      });
+    } else {
+      savedPitch = await prisma.pitch.create({
+        data: {
+          matchId: match.id,
+          subject,
+          body,
+          status: "DRAFT",
+          channel,
+          sentTo: match.playlist?.curator?.email || null,
+        },
+      });
+    }
 
     return res.json({ ok: true, pitch: savedPitch });
   } catch (error) {

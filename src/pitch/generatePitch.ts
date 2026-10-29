@@ -16,26 +16,21 @@ export function generatePitch({
   const name = curatorName || "there";
   const playlist = playlistName || "your playlist";
 
-  const genreLine =
+  const genreContext =
     genres && genres.length > 0
-      ? genres.slice(0, 2).join(", ")
-      : "reggae / dub";
-
-  const vibeLine =
-    tempo && tempo > 0
-      ? `around ${Math.round(tempo)} BPM with a solid groove`
-      : "a deep roots groove";
+      ? ` I noticed the playlist focuses on ${genres.slice(0, 2).join(" and ")}.`
+      : "";
 
   return {
-    subject: `${artistName} — ${trackTitle} (for ${playlist})`,
+    subject: `${trackTitle} for ${playlist}`,
 
     body: `Hi ${name},
 
-Sending you my new track "${trackTitle}" — ${genreLine} with ${vibeLine}.
+I'm sharing "${trackTitle}" by ${artistName} for your consideration.${genreContext}
 
-Feels like a natural fit for ${playlist}.
+If it sounds relevant, I'd be glad if you gave it a listen.
 
-Respect,
+Best,
 ${artistName}`,
   };
 }
