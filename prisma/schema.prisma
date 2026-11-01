@@ -66,21 +66,23 @@ model Track {
 }
 
 model Curator {
-  id                String        @id @default(cuid())
+  id                String          @id @default(cuid())
   name              String
-  email             String?       @unique
+  email             String?         @unique
   contactMethod     ContactMethod
-  consent           Boolean       @default(true)
-  languages         String[]      @default(["en"])
-  createdAt         DateTime      @default(now())
-  contactConfidence Int           @default(0)
+  consent           Boolean         @default(true)
+  languages         String[]        @default(["en"])
+  createdAt         DateTime        @default(now())
+  contactConfidence Int             @default(0)
   contactSourceUrl  String?
   enrichmentNotes   String?
   instagramUrl      String?
   lastEnrichedAt    DateTime?
   submissionUrl     String?
   websiteUrl        String?
+  clerkUserId       String?         @unique
   playlists         Playlist[]
+  claims            PlaylistClaim[]
 }
 
 model EmailSuppression {
@@ -93,7 +95,7 @@ model EmailSuppression {
 }
 
 model Playlist {
-  id                String       @id @default(cuid())
+  id                String          @id @default(cuid())
   curatorId         String
   name              String
   spotifyPlaylistId String?
@@ -103,14 +105,33 @@ model Playlist {
   minEnergy         Float?
   maxEnergy         Float?
   rules             Json?
-  createdAt         DateTime     @default(now())
+  createdAt         DateTime        @default(now())
   description       String?
   ownerDisplayName  String?
   ownerSpotifyId    String?
   spotifyUrl        String?
   matches           Match[]
-  curator           Curator      @relation(fields: [curatorId], references: [id])
+  curator           Curator         @relation(fields: [curatorId], references: [id])
   tasteEvents       TasteEvent[]
+  claims            PlaylistClaim[]
+}
+
+model PlaylistClaim {
+  id                 String                   @id @default(cuid())
+  playlistId         String                   @unique
+  curatorId          String
+  status             PlaylistClaimStatus      @default(PENDING)
+  verificationMethod ClaimVerificationMethod?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  verifiedAt         DateTime?
+  rejectedAt         DateTime?
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  curator  Curator  @relation(fields: [curatorId], references: [id], onDelete: Cascade)
+
+  @@index([curatorId])
+  @@index([status])
 }
 
 model TasteEvent {
@@ -349,4 +370,17 @@ enum MatchJobStatus {
   RUNNING
   SUCCEEDED
   FAILED
+}
+
+enum PlaylistClaimStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ClaimVerificationMethod {
+  EMAIL
+  WEBSITE
+  SPOTIFY
+  MANUAL
 }
