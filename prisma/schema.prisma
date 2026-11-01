@@ -117,20 +117,22 @@ model Playlist {
 }
 
 model PlaylistClaim {
-  id                 String                   @id @default(cuid())
-  playlistId         String                   @unique
-  curatorId          String
-  status             PlaylistClaimStatus      @default(PENDING)
-  verificationMethod ClaimVerificationMethod?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  verifiedAt         DateTime?
-  rejectedAt         DateTime?
+  id                  String                   @id @default(cuid())
+  playlistId          String                   @unique
+  curatorId           String
+  claimantClerkUserId String
+  status              PlaylistClaimStatus      @default(PENDING)
+  verificationMethod  ClaimVerificationMethod?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  verifiedAt          DateTime?
+  rejectedAt          DateTime?
 
   playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
   curator  Curator  @relation(fields: [curatorId], references: [id], onDelete: Cascade)
 
   @@index([curatorId])
+  @@index([claimantClerkUserId])
   @@index([status])
 }
 
