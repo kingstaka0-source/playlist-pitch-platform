@@ -29,6 +29,7 @@ import { clickTracking } from "./routes/clickTracking";
 import { followups } from "./routes/followups";
 import authRoutes from "./routes/auth";
 import curatorClaims from "./routes/curatorClaims";
+import curatorDashboard from "./routes/curatorDashboard";
 import { clerkMiddleware } from "@clerk/express";
 import { requireCurrentArtist } from "./auth/requireCurrentArtist";
 import campaigns from "./routes/campaigns";
@@ -159,6 +160,10 @@ app.use("/auth", authRoutes);
 // Playlist claims: Clerk-authenticatie wordt in de route zelf gecontroleerd.
 // Een pending claimant heeft nog geen gekoppeld Curator-account.
 app.use("/curator-claims", curatorClaims);
+
+// Curator dashboard: authenticatie en eigenaarschap worden
+// binnen de route gecontroleerd.
+app.use("/curator", curatorDashboard);
 
 // Alle legal-routes vereisen een echte ingelogde artiest
 app.use("/legal", requireCurrentArtist);
