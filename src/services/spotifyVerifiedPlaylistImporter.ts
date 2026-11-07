@@ -80,33 +80,33 @@ const SEARCH_GROUPS = [
   { q: "afro dancehall", genres: ["dancehall", "afro"] },
 
   // SOCA / CARIBBEAN / CARNIVAL
-{ q: "soca", genres: ["soca", "caribbean"] },
-{ q: "soca playlist", genres: ["soca", "caribbean"] },
-{ q: "soca 2025", genres: ["soca", "caribbean"] },
-{ q: "soca 2026", genres: ["soca", "caribbean"] },
-{ q: "carnival soca", genres: ["soca", "carnival", "caribbean"] },
-{ q: "trinidad soca", genres: ["soca", "caribbean"] },
-{ q: "caribbean vibes", genres: ["caribbean", "soca", "dancehall"] },
-{ q: "caribbean party", genres: ["caribbean", "soca", "dancehall"] },
-{ q: "island vibes", genres: ["caribbean", "soca", "dancehall"] },
-{ q: "calypso soca", genres: ["soca", "calypso", "caribbean"] },
-{ q: "bouyon", genres: ["soca", "caribbean"] },
-{ q: "tropical party", genres: ["caribbean", "soca", "afro"] },
+  { q: "soca", genres: ["soca", "caribbean"] },
+  { q: "soca playlist", genres: ["soca", "caribbean"] },
+  { q: "soca 2025", genres: ["soca", "caribbean"] },
+  { q: "soca 2026", genres: ["soca", "caribbean"] },
+  { q: "carnival soca", genres: ["soca", "carnival", "caribbean"] },
+  { q: "trinidad soca", genres: ["soca", "caribbean"] },
+  { q: "caribbean vibes", genres: ["caribbean", "soca", "dancehall"] },
+  { q: "caribbean party", genres: ["caribbean", "soca", "dancehall"] },
+  { q: "island vibes", genres: ["caribbean", "soca", "dancehall"] },
+  { q: "calypso soca", genres: ["soca", "calypso", "caribbean"] },
+  { q: "bouyon", genres: ["soca", "caribbean"] },
+  { q: "tropical party", genres: ["caribbean", "soca", "afro"] },
 
-// SURINAME / CARIBBEAN / KASEKO
-{ q: "surinam music", genres: ["surinam", "caribbean"] },
-{ q: "suriname playlist", genres: ["surinam", "caribbean"] },
-{ q: "surinaamse muziek", genres: ["surinam", "caribbean"] },
-{ q: "kaseko", genres: ["kaseko", "surinam"] },
-{ q: "kaseko playlist", genres: ["kaseko", "surinam"] },
-{ q: "kawina", genres: ["kawina", "surinam"] },
-{ q: "kawina playlist", genres: ["kawina", "surinam"] },
-{ q: "suripop", genres: ["surinam"] },
-{ q: "baithak gana", genres: ["surinam", "caribbean"] },
-{ q: "chutney music", genres: ["caribbean", "surinam"] },
-{ q: "caribbean nederland", genres: ["caribbean"] },
-{ q: "zouk caribbean", genres: ["caribbean"] },
-{ q: "dutch caribbean", genres: ["caribbean"] },
+  // SURINAME / CARIBBEAN / KASEKO
+  { q: "surinam music", genres: ["surinam", "caribbean"] },
+  { q: "suriname playlist", genres: ["surinam", "caribbean"] },
+  { q: "surinaamse muziek", genres: ["surinam", "caribbean"] },
+  { q: "kaseko", genres: ["kaseko", "surinam"] },
+  { q: "kaseko playlist", genres: ["kaseko", "surinam"] },
+  { q: "kawina", genres: ["kawina", "surinam"] },
+  { q: "kawina playlist", genres: ["kawina", "surinam"] },
+  { q: "suripop", genres: ["surinam"] },
+  { q: "baithak gana", genres: ["surinam", "caribbean"] },
+  { q: "chutney music", genres: ["caribbean", "surinam"] },
+  { q: "caribbean nederland", genres: ["caribbean"] },
+  { q: "zouk caribbean", genres: ["caribbean"] },
+  { q: "dutch caribbean", genres: ["caribbean"] },
 
   // AFRO / AFROBEATS
   { q: "afrobeats", genres: ["afro"] },
@@ -309,8 +309,8 @@ async function getSpotifyAccessToken(): Promise<string> {
   if (!res.ok || !json.access_token) {
     throw new Error(
       json.error_description ||
-        json.error ||
-        `Spotify token failed (${res.status})`
+      json.error ||
+      `Spotify token failed (${res.status})`
     );
   }
 
@@ -365,13 +365,13 @@ async function searchSpotifyPlaylistsPage(
     throw new Error(retryMessage);
   }
 
-if (!res.ok) {
-  throw new Error(
-    json?.error?.message ||
+  if (!res.ok) {
+    throw new Error(
+      json?.error?.message ||
       json?.message ||
       `Spotify search failed (${res.status})`
-  );
-}
+    );
+  }
 
   return Array.isArray(json?.playlists?.items) ? json.playlists.items : [];
 }
@@ -456,6 +456,24 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
   );
 
   if (existing) {
+    const existingRules =
+      existing.rules &&
+        typeof existing.rules === "object" &&
+        !Array.isArray(existing.rules)
+        ? existing.rules
+        : {};
+
+    const curatorSettings =
+      "curatorSettings" in existingRules &&
+        existingRules.curatorSettings &&
+        typeof existingRules.curatorSettings === "object" &&
+        !Array.isArray(existingRules.curatorSettings)
+        ? existingRules.curatorSettings
+        : {};
+
+    const genresManagedByCurator =
+      "genresManagedByCurator" in curatorSettings &&
+      curatorSettings.genresManagedByCurator === true;
     const updated = await withRetry(
       () =>
         prisma.playlist.update({
@@ -466,7 +484,7 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
             description: safeDescription(item?.description),
             ownerDisplayName: safeOwnerDisplayName(item),
             ownerSpotifyId: safeOwnerSpotifyId(item),
-            genres,
+            genres: genresManagedByCurator ? existing.genres : genres,
           },
         }),
       `playlist.update(${playlistName})`
@@ -499,12 +517,12 @@ async function upsertPlaylist(item: SpotifyPlaylistItem, genreHints: string[]) {
   let curator =
     contact.email
       ? await withRetry(
-          () =>
-            prisma.curator.findFirst({
-              where: { email: contact.email },
-            }),
-          `curator.findByEmail(${contact.email})`
-        )
+        () =>
+          prisma.curator.findFirst({
+            where: { email: contact.email },
+          }),
+        `curator.findByEmail(${contact.email})`
+      )
       : null;
 
   if (!curator) {
@@ -701,47 +719,47 @@ export async function runVerifiedSpotifyPlaylistImport(options: ImportOptions = 
   const requestedMaxPages = options.maxPages;
   const maxPages =
     Number.isFinite(requestedMaxPages) &&
-    Number(requestedMaxPages) > 0
+      Number(requestedMaxPages) > 0
       ? Math.min(Number(requestedMaxPages), MAX_PAGES_PER_QUERY)
       : MAX_PAGES_PER_QUERY;
 
   console.log(`Spotify pages per search: ${maxPages}/${MAX_PAGES_PER_QUERY}`);
 
-const groupsToRun = filter
-  ? SEARCH_GROUPS.filter((g) =>
+  const groupsToRun = filter
+    ? SEARCH_GROUPS.filter((g) =>
       g.q.toLowerCase().includes(filter) ||
       g.genres.some((genre) => genre.toLowerCase().includes(filter))
     )
-  : SEARCH_GROUPS;
+    : SEARCH_GROUPS;
 
   for (const group of groupsToRun) {
-  console.log("Waiting to avoid Spotify rate limit...");
-  await sleep(1200);
+    console.log("Waiting to avoid Spotify rate limit...");
+    await sleep(1200);
 
-  console.log(`=== SEARCH: ${group.q} ===`);
+    console.log(`=== SEARCH: ${group.q} ===`);
 
-  let items: SpotifyPlaylistItem[] = [];
+    let items: SpotifyPlaylistItem[] = [];
 
-  try {
-    items = await searchSpotifyPlaylistsAllPages(
-      accessToken,
-      group.q,
-      maxPages
-    );
-  } catch (error) {
-    failed += 1;
+    try {
+      items = await searchSpotifyPlaylistsAllPages(
+        accessToken,
+        group.q,
+        maxPages
+      );
+    } catch (error) {
+      failed += 1;
 
-    const message =
-      error instanceof Error ? error.message : String(error);
+      const message =
+        error instanceof Error ? error.message : String(error);
 
-    console.error(`SEARCH FAILED for "${group.q}":`, error);
+      console.error(`SEARCH FAILED for "${group.q}":`, error);
 
-    if (message.startsWith("Spotify rate limit reached.")) {
-      throw error;
+      if (message.startsWith("Spotify rate limit reached.")) {
+        throw error;
+      }
+
+      continue;
     }
-
-    continue;
-  }
 
     for (const item of items) {
       try {

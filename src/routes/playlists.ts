@@ -125,8 +125,8 @@ async function getSpotifyAppAccessToken() {
   if (!tokenRes.ok || !tokenJson?.access_token) {
     throw new Error(
       tokenJson?.error_description ||
-        tokenJson?.error ||
-        "SPOTIFY_CLIENT_CREDENTIALS_FAILED"
+      tokenJson?.error ||
+      "SPOTIFY_CLIENT_CREDENTIALS_FAILED"
     );
   }
 
@@ -254,13 +254,13 @@ playlists.post("/playlists/discover", requireAdmin, async (req, res) => {
 
     let curator:
       | {
-          id: string;
-          name: string;
-          email: string | null;
-          contactMethod: "EMAIL" | "INAPP";
-          consent: boolean;
-          languages: string[];
-        }
+        id: string;
+        name: string;
+        email: string | null;
+        contactMethod: "EMAIL" | "INAPP";
+        consent: boolean;
+        languages: string[];
+      }
       | null = null;
 
     if (curatorEmailRaw) {
@@ -311,18 +311,34 @@ playlists.post("/playlists/discover", requireAdmin, async (req, res) => {
     }
 
     if (existingPlaylist) {
+      const verifiedClaim = await prisma.playlistClaim.findFirst({
+        where: {
+          playlistId: existingPlaylist.id,
+          status: "VERIFIED",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const isVerified = Boolean(verifiedClaim);
       const updated = await prisma.playlist.update({
         where: { id: existingPlaylist.id },
         data: {
           name: playlistName,
           spotifyPlaylistId:
             spotifyPlaylistId ?? existingPlaylist.spotifyPlaylistId,
-          genres,
-          minBpm,
-          maxBpm,
-          minEnergy,
-          maxEnergy,
-          rules: rules ?? Prisma.JsonNull,
+
+          ...(isVerified
+            ? {}
+            : {
+              genres,
+              minBpm,
+              maxBpm,
+              minEnergy,
+              maxEnergy,
+              rules: rules ?? Prisma.JsonNull,
+            }),
         },
         include: {
           curator: true,
@@ -353,7 +369,7 @@ playlists.post("/playlists/discover", requireAdmin, async (req, res) => {
         maxBpm,
         minEnergy,
         maxEnergy,
-       rules: rules ?? Prisma.JsonNull,
+        rules: rules ?? Prisma.JsonNull,
       },
       include: {
         curator: true,
@@ -388,17 +404,17 @@ playlists.post("/playlists/import-from-spotify", requireAdmin, async (req, res) 
 
     const playlistUrlOrId = String(
       req.body?.playlistUrl ||
-        req.body?.spotifyUrl ||
-        req.body?.playlistId ||
-        req.body?.url ||
-        ""
+      req.body?.spotifyUrl ||
+      req.body?.playlistId ||
+      req.body?.url ||
+      ""
     ).trim();
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     if (!playlistUrlOrId) {
       return res.status(400).json({ error: "MISSING_PLAYLIST_URL_OR_ID" });
@@ -506,10 +522,10 @@ playlists.post("/playlists/:id/auto-pitch-all", requireAdmin, async (req, res) =
     const artistId = getArtistId(res);
 
     if (!artistId) {
-  return res.status(401).json({
-    error: "UNAUTHORIZED",
-  });
-}
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+      });
+    }
 
     const playlistId = String(req.params.id || "").trim();
     if (!playlistId) {
@@ -724,14 +740,14 @@ playlists.get("/playlists", requireAdmin, async (req, res) => {
       tasteEventCount: playlist._count.tasteEvents,
       curator: playlist.curator
         ? {
-            id: playlist.curator.id,
-            name: playlist.curator.name,
-            email: playlist.curator.email,
-            contactMethod: playlist.curator.contactMethod,
-            consent: playlist.curator.consent,
-            languages: playlist.curator.languages,
-            canEmail: canEmailCurator(playlist.curator),
-          }
+          id: playlist.curator.id,
+          name: playlist.curator.name,
+          email: playlist.curator.email,
+          contactMethod: playlist.curator.contactMethod,
+          consent: playlist.curator.consent,
+          languages: playlist.curator.languages,
+          canEmail: canEmailCurator(playlist.curator),
+        }
         : null,
     }));
 
@@ -807,14 +823,14 @@ playlists.get("/playlists/:id", requireAdmin, async (req, res) => {
         tasteEventCount: playlist._count.tasteEvents,
         curator: playlist.curator
           ? {
-              id: playlist.curator.id,
-              name: playlist.curator.name,
-              email: playlist.curator.email,
-              contactMethod: playlist.curator.contactMethod,
-              consent: playlist.curator.consent,
-              languages: playlist.curator.languages,
-              canEmail: canEmailCurator(playlist.curator),
-            }
+            id: playlist.curator.id,
+            name: playlist.curator.name,
+            email: playlist.curator.email,
+            contactMethod: playlist.curator.contactMethod,
+            consent: playlist.curator.consent,
+            languages: playlist.curator.languages,
+            canEmail: canEmailCurator(playlist.curator),
+          }
           : null,
         tasteEvents: playlist.tasteEvents.map((event) => ({
           id: event.id,
@@ -831,20 +847,20 @@ playlists.get("/playlists/:id", requireAdmin, async (req, res) => {
           playlistId: match.playlistId,
           track: match.track
             ? {
-                id: match.track.id,
-                title: match.track.title,
-                spotifyTrackId: match.track.spotifyTrackId,
-                artists: match.track.artists,
-              }
+              id: match.track.id,
+              title: match.track.title,
+              spotifyTrackId: match.track.spotifyTrackId,
+              artists: match.track.artists,
+            }
             : null,
           pitch: match.pitch
             ? {
-                id: match.pitch.id,
-                status: match.pitch.status,
-                channel: match.pitch.channel,
-                sentAt: match.pitch.sentAt,
-                sentTo: match.pitch.sentTo,
-              }
+              id: match.pitch.id,
+              status: match.pitch.status,
+              channel: match.pitch.channel,
+              sentAt: match.pitch.sentAt,
+              sentTo: match.pitch.sentTo,
+            }
             : null,
         })),
       },
