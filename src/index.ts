@@ -30,6 +30,8 @@ import { followups } from "./routes/followups";
 import authRoutes from "./routes/auth";
 import curatorClaims from "./routes/curatorClaims";
 import curatorDashboard from "./routes/curatorDashboard";
+import submissions from "./routes/submissions";
+import curatorSubmissions from "./routes/curatorSubmissions";
 import { clerkMiddleware } from "@clerk/express";
 import { requireCurrentArtist } from "./auth/requireCurrentArtist";
 import campaigns from "./routes/campaigns";
@@ -164,6 +166,9 @@ app.use("/curator-claims", curatorClaims);
 // Curator dashboard: authenticatie en eigenaarschap worden
 // binnen de route gecontroleerd.
 app.use("/curator", curatorDashboard);
+
+app.use("/curator", curatorSubmissions);
+app.use("/submissions", requireCurrentArtist, submissions);
 
 // Alle legal-routes vereisen een echte ingelogde artiest
 app.use("/legal", requireCurrentArtist);

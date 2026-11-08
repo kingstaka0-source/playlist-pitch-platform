@@ -35,10 +35,11 @@ model Artist {
   currentPeriodEnd        DateTime?
   cancelAtPeriodEnd       Boolean            @default(false)
   tracks                  Track[]
+  submissions             Submission[]
 }
 
 model Track {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   artistId       String
   spotifyTrackId String
   spotifyAlbumId String?
@@ -51,14 +52,15 @@ model Track {
   isrc           String?
   trackNumber    Int?
   discNumber     Int?
-  explicit       Boolean  @default(false)
+  explicit       Boolean      @default(false)
   durationMs     Int
   audioFeatures  Json
   genres         String[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
   matches        Match[]
-  artist         Artist   @relation(fields: [artistId], references: [id])
+  artist         Artist       @relation(fields: [artistId], references: [id])
+  submissions    Submission[]
 
   @@unique([artistId, spotifyTrackId])
   @@index([artistId])
@@ -83,6 +85,7 @@ model Curator {
   clerkUserId       String?         @unique
   playlists         Playlist[]
   claims            PlaylistClaim[]
+  submissions       Submission[]
 }
 
 model EmailSuppression {
@@ -114,6 +117,7 @@ model Playlist {
   curator           Curator         @relation(fields: [curatorId], references: [id])
   tasteEvents       TasteEvent[]
   claims            PlaylistClaim[]
+  submissions       Submission[]
 }
 
 model PlaylistClaim {
@@ -271,6 +275,7 @@ model Pitch {
   followUpSent      Boolean         @default(false)
   followUpSentAt    DateTime?
   match             Match           @relation(fields: [matchId], references: [id])
+  submissions       Submission[]
 }
 
 model AgreementAcceptance {
@@ -385,4 +390,37 @@ enum ClaimVerificationMethod {
   WEBSITE
   SPOTIFY
   MANUAL
+}
+
+enum SubmissionStatus {
+  PENDING
+  IN_REVIEW
+  ACCEPTED
+  REJECTED
+}
+
+model Submission {
+  id          String           @id @default(cuid())
+  trackId     String
+  playlistId  String
+  artistId    String
+  curatorId   String
+  pitchId     String?
+  status      SubmissionStatus @default(PENDING)
+  reviewNotes String?
+  submittedAt DateTime         @default(now())
+  reviewedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  track    Track    @relation(fields: [trackId], references: [id])
+  playlist Playlist @relation(fields: [playlistId], references: [id])
+  artist   Artist   @relation(fields: [artistId], references: [id])
+  curator  Curator  @relation(fields: [curatorId], references: [id])
+  pitch    Pitch?   @relation(fields: [pitchId], references: [id])
+
+  @@unique([trackId, playlistId])
+  @@index([curatorId, status])
+  @@index([playlistId, status])
+  @@index([artistId])
 }
