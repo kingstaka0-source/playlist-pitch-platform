@@ -133,6 +133,13 @@ const list = await prisma.match.findMany({
     playlist: {
       include: {
         curator: true,
+        claims: {
+          where: { status: "VERIFIED" },
+          select: {
+            curatorId: true,
+            claimantClerkUserId: true,
+          },
+        },
       },
     },
   },
@@ -190,6 +197,35 @@ const ranked = list
         curator.contactMethod === "EMAIL" &&
         curator.consent === true;
 
+      const verifiedClaim = m.playlist?.claims?.find(
+        (claim) =>
+          claim.curatorId === m.playlist.curatorId &&
+          Boolean(claim.claimantClerkUserId),
+      );
+
+      const rules = m.playlist?.rules;
+
+      const settings =
+        rules &&
+        typeof rules === "object" &&
+        !Array.isArray(rules) &&
+        "curatorSettings" in rules
+          ? rules.curatorSettings
+          : null;
+
+      const acceptingSubmissions =
+        settings &&
+        typeof settings === "object" &&
+        !Array.isArray(settings) &&
+        "acceptingSubmissions" in settings &&
+        settings.acceptingSubmissions === true;
+
+      const canSubmit = Boolean(
+        verifiedClaim &&
+          curator?.clerkUserId &&
+          curator.clerkUserId === verifiedClaim.claimantClerkUserId &&
+          acceptingSubmissions,
+      );
       return {
         id: m.id,
         trackId: m.trackId,
@@ -220,6 +256,7 @@ const ranked = list
                     websiteUrl: safeCuratorWebsiteUrl(curator.websiteUrl),
                     instagramUrl: curator.instagramUrl,
                     canEmail,
+                    canSubmit,
                   }
                 : null,
             }
