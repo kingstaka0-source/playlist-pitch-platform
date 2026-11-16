@@ -424,3 +424,39 @@ model Submission {
   @@index([playlistId, status])
   @@index([artistId])
 }
+
+model OutreachDelivery {
+  id                String   @id @default(cuid())
+  artistId          String
+  trackId           String
+  curatorId         String?
+  playlistId        String?
+  pitchId           String?  @unique
+  recipientEmail    String
+  normalizedEmail   String
+  providerMessageId String?  @unique
+  status            String   @default("RESERVED")
+  source            String
+  reservedAt        DateTime @default(now())
+  sentAt            DateTime?
+  failedAt          DateTime?
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([artistId, trackId])
+  @@index([pitchId])
+  @@index([status])
+}
+
+model OutreachIdentity {
+  id            String   @id @default(cuid())
+  trackId       String
+  identityType  String
+  identityValue String
+  deliveryId    String?
+  createdAt     DateTime @default(now())
+
+  @@unique([trackId, identityType, identityValue], name: "outreach_identity_unique")
+  @@index([deliveryId])
+}

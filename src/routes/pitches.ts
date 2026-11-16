@@ -6,6 +6,11 @@ import { parseAiPitch } from "../services/ai/parseAiPitch";
 import { generateTextFromAi } from "../services/ai/generateTextFromAi";
 import { getArtistUsage } from "./artists";
 import { generatePitch } from "../pitch/generatePitch";
+import {
+  reserveOutreach,
+  markOutreachSent,
+  markOutreachUncertain,
+} from "../services/outreachReservation";
 
 const router = Router();
 
@@ -622,45 +627,89 @@ ${openPixelUrl}
 `;
 
 
-
-    const emailResult = await resend.emails.send({
-      from,
-      to,
-      subject: pitch.subject || `Track suggestion: ${track.title}`,
-      text: finalBody.trim(),
-      html: htmlBody,
-    });
-
-    console.log("RESEND_EMAIL_SENT", {
+    const reservation = await reserveOutreach({
+      artistId,
+      trackId: pitch.match.track.id,
+      curatorId: curator?.id,
+      playlistId: pitch.match.playlist.id,
       pitchId: pitch.id,
-      messageId: emailResult.data?.id ?? null,
+      recipientEmail: to,
+      identityEmail: curator?.email,
+      source: "PITCH_SINGLE_EMAIL",
     });
 
-    if (emailResult.error) {
-      throw new Error(
-        `Resend failed: ${emailResult.error.message || JSON.stringify(emailResult.error)
-        }`
-      );
+    if (!reservation.ok) {
+      return res.status(409).json({
+        error: "CURATOR_ALREADY_CONTACTED",
+        message: "This curator has already been contacted for this track.",
+      });
     }
 
-    if (!emailResult.data?.id) {
-      throw new Error(
-        "Resend did not return an email id. Pitch will not be marked as SENT."
-      );
-    }
+    let updated;
 
-    const updated = await prisma.pitch.update({
-      where: { id: pitch.id },
-      data: {
-        status: "SENT",
-        sentAt: pitch.sentAt ?? new Date(),
-        sentTo: to,
+    try {
+      const emailResult = await resend.emails.send({
+        from,
+        to,
+        subject: pitch.subject || `Track suggestion: ${track.title}`,
+        text: finalBody.trim(),
+        html: htmlBody,
+      });
+
+      if (emailResult.error) {
+        throw new Error(
+          `Resend failed: ${emailResult.error.message || JSON.stringify(emailResult.error)
+          }`
+        );
+      }
+
+      if (!emailResult.data?.id) {
+        throw new Error(
+          "Resend did not return an email id. Delivery outcome is uncertain."
+        );
+      }
+
+      console.log("RESEND_EMAIL_SENT", {
+        pitchId: pitch.id,
+        messageId: emailResult.data.id,
+      });
+
+      const sentAt = new Date();
+
+      updated = await prisma.pitch.update({
+        where: { id: pitch.id },
+        data: {
+          status: "SENT",
+          sentAt,
+          sentTo: to,
+          providerMessageId: emailResult.data.id,
+          deliveryStatus: "SENT",
+          deliveredAt: null,
+          deliveryError: null,
+        },
+      });
+
+      await markOutreachSent({
+        deliveryId: reservation.deliveryId,
         providerMessageId: emailResult.data.id,
-        deliveryStatus: "SENT",
-        deliveredAt: null,
-        deliveryError: null,
-      },
-    });
+        sentAt,
+      });
+    } catch (error) {
+      try {
+        await markOutreachUncertain({
+          deliveryId: reservation.deliveryId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch (reservationError) {
+        console.error("PITCH_SINGLE_EMAIL_RESERVATION_UPDATE_FAILED", {
+          pitchId: pitch.id,
+          deliveryId: reservation.deliveryId,
+          error: reservationError,
+        });
+      }
+
+      throw error;
+    }
 
     return res.json({
       ok: true,
@@ -1038,76 +1087,124 @@ ${trackedSpotifyUrl
         // SEND EMAIL
         // ===================================
 
-        const emailResult = await resend.emails.send({
-          from,
-          to,
-          subject: pitch.subject || `Track suggestion: ${track.title}`,
-          text: finalBody.trim(),
-          html: htmlBody,
-        });
-
-        console.log("RESEND_CAMPAIGN_EMAIL_SENT", {
-          campaignId: campaignHistory.id,
+        const reservation = await reserveOutreach({
+          artistId,
+          trackId,
+          curatorId: curator?.id,
+          playlistId: match.playlist.id,
           pitchId: pitch.id,
-          matchId: match.id,
-          messageId: emailResult.data?.id ?? null,
+          recipientEmail: to,
+          identityEmail: curator?.email,
+          source: "PITCH_LAUNCH_CAMPAIGN",
         });
 
-        if (emailResult.error) {
-          throw new Error(
-            `Resend failed: ${emailResult.error.message || JSON.stringify(emailResult.error)
-            }`
-          );
+        if (!reservation.ok) {
+          skippedAlreadySent++;
+
+          console.log("CAMPAIGN_OUTREACH_DUPLICATE_SKIPPED", {
+            matchId: match.id,
+            pitchId: pitch.id,
+          });
+
+          continue;
         }
 
-        if (!emailResult.data?.id) {
-          throw new Error(
-            "Resend did not return an email id. Pitch will not be marked as SENT."
-          );
-        }
+        let outreachMarkedSent = false;
 
-        const sentAt =
-          pitch.sentAt ?? new Date();
+        try {
+          const emailResult = await resend.emails.send({
+            from,
+            to,
+            subject: pitch.subject || `Track suggestion: ${track.title}`,
+            text: finalBody.trim(),
+            html: htmlBody,
+          });
 
-        await prisma.pitch.update({
-          where: {
-            id: pitch.id,
-          },
-          data: {
-            status: "SENT",
-            sentAt,
-            sentTo: to,
-            providerMessageId: emailResult.data.id,
-            deliveryStatus: "SENT",
-            deliveredAt: null,
-            deliveryError: null,
-          },
-        });
+          if (emailResult.error) {
+            throw new Error(
+              `Resend failed: ${emailResult.error.message ||
+              JSON.stringify(emailResult.error)
+              }`
+            );
+          }
 
-        // ===================================
-        // SAVE REAL SENT EVENT
-        // ===================================
+          if (!emailResult.data?.id) {
+            throw new Error(
+              "Resend did not return an email id. Delivery outcome is uncertain."
+            );
+          }
 
-        await prisma.campaignEvent.create({
-          data: {
+          console.log("RESEND_CAMPAIGN_EMAIL_SENT", {
             campaignId: campaignHistory.id,
-            campaignItemId: campaignItem.id,
-
             pitchId: pitch.id,
             matchId: match.id,
+            messageId: emailResult.data.id,
+          });
 
-            type: "SENT",
+          const sentAt = new Date();
 
-            metadata: {
-              sentTo: to,
-              subject:
-                pitch.subject ||
-                `Track suggestion: ${track.title}`,
+          await prisma.pitch.update({
+            where: {
+              id: pitch.id,
             },
-          },
-        });
+            data: {
+              status: "SENT",
+              sentAt,
+              sentTo: to,
+              providerMessageId: emailResult.data.id,
+              deliveryStatus: "SENT",
+              deliveredAt: null,
+              deliveryError: null,
+            },
+          });
 
-        sent++;
+          await markOutreachSent({
+            deliveryId: reservation.deliveryId,
+            providerMessageId: emailResult.data.id,
+            sentAt,
+          });
+
+          outreachMarkedSent = true;
+
+          // ===================================
+          // SAVE REAL SENT EVENT
+          // ===================================
+
+          await prisma.campaignEvent.create({
+            data: {
+              campaignId: campaignHistory.id,
+              campaignItemId: campaignItem.id,
+              pitchId: pitch.id,
+              matchId: match.id,
+              type: "SENT",
+              metadata: {
+                sentTo: to,
+                subject:
+                  pitch.subject ||
+                  `Track suggestion: ${track.title}`,
+              },
+            },
+          });
+
+          sent++;
+        } catch (error) {
+          if (!outreachMarkedSent) {
+            try {
+              await markOutreachUncertain({
+                deliveryId: reservation.deliveryId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            } catch (reservationError) {
+              console.error("CAMPAIGN_OUTREACH_RESERVATION_UPDATE_FAILED", {
+                pitchId: pitch.id,
+                deliveryId: reservation.deliveryId,
+                error: reservationError,
+              });
+            }
+          }
+
+          throw error;
+        }
       } catch (error) {
         failed++;
 
@@ -1359,47 +1456,86 @@ ${openPixelUrl}
 `;
 
 
-        const emailResult = await resend.emails.send({
-          from,
-          to,
-          subject: pitch.subject || `Track suggestion: ${track.title}`,
-          text: finalBody,
-          html: htmlBody,
-        });
-
-        console.log("RESEND_SEND_ALL_EMAIL_SENT", {
+        const reservation = await reserveOutreach({
+          artistId,
+          trackId: track.id,
+          curatorId: curator?.id,
+          playlistId: pitch.match.playlist.id,
           pitchId: pitch.id,
-          messageId: emailResult.data?.id ?? null,
+          recipientEmail: to,
+          identityEmail: curator?.email,
+          source: "PITCH_SEND_ALL",
         });
 
-        if (emailResult.error) {
-          throw new Error(
-            `Resend failed: ${emailResult.error.message ||
-            JSON.stringify(emailResult.error)
-            }`
-          );
+        if (!reservation.ok) {
+          console.log("SEND_ALL_OUTREACH_DUPLICATE_SKIPPED", {
+            pitchId: pitch.id,
+          });
+          continue;
         }
 
-        if (!emailResult.data?.id) {
-          throw new Error(
-            "Resend did not return an email id. Pitch will not be marked as SENT."
-          );
-        }
+        try {
+          const emailResult = await resend.emails.send({
+            from,
+            to,
+            subject: pitch.subject || `Track suggestion: ${track.title}`,
+            text: finalBody,
+            html: htmlBody,
+          });
 
-        await prisma.pitch.update({
-          where: { id: pitch.id },
-          data: {
-            status: "SENT",
-            sentAt: pitch.sentAt ?? new Date(),
-            sentTo: to,
+          if (emailResult.error) {
+            throw new Error(
+              `Resend failed: ${emailResult.error.message}`
+            );
+          }
+
+          if (!emailResult.data?.id) {
+            throw new Error("RESEND_DELIVERY_OUTCOME_UNKNOWN");
+          }
+
+          const sentAt = new Date();
+
+          await prisma.pitch.update({
+            where: { id: pitch.id },
+            data: {
+              status: "SENT",
+              sentAt,
+              sentTo: to,
+              providerMessageId: emailResult.data.id,
+              deliveryStatus: "SENT",
+              deliveredAt: null,
+              deliveryError: null,
+            },
+          });
+
+          await markOutreachSent({
+            deliveryId: reservation.deliveryId,
             providerMessageId: emailResult.data.id,
-            deliveryStatus: "SENT",
-            deliveredAt: null,
-            deliveryError: null,
-          },
-        });
+            sentAt,
+          });
 
-        sent++;
+          console.log("RESEND_SEND_ALL_EMAIL_SENT", {
+            pitchId: pitch.id,
+            messageId: emailResult.data.id,
+          });
+
+          sent++;
+        } catch (error) {
+          try {
+            await markOutreachUncertain({
+              deliveryId: reservation.deliveryId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          } catch (reservationError) {
+            console.error(
+              "SEND_ALL_RESERVATION_UPDATE_FAILED",
+              pitch.id,
+              reservationError
+            );
+          }
+
+          throw error;
+        }
       } catch (error) {
         console.error("SEND_ALL_SINGLE_EMAIL_FAILED", pitch.id, error);
         failed++;
